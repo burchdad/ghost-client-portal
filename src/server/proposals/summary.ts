@@ -1,7 +1,10 @@
 import type { ProposalAcceptance } from "@prisma/client";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   PDFDocument,
   type PDFFont,
+  type PDFImage,
   type PDFPage,
   StandardFonts,
   rgb,
@@ -25,6 +28,7 @@ export async function buildAcceptanceSummaryPdf(
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const mono = await pdf.embedFont(StandardFonts.Courier);
+  const logo = await loadLogo(pdf);
   const pageSize: [number, number] = [612, 792];
   const margin = 48;
   let page = pdf.addPage(pageSize);
@@ -57,7 +61,7 @@ export async function buildAcceptanceSummaryPdf(
     y -= size + 7;
   };
 
-  drawHeader(page, bold, regular);
+  drawHeader(page, bold, regular, logo);
   drawFooter(page, regular);
 
   y = 626;
@@ -269,7 +273,12 @@ export function buildAcceptanceSummaryHtml(acceptance: ProposalAcceptance) {
 </html>`;
 }
 
-function drawHeader(page: PDFPage, bold: PDFFont, regular: PDFFont) {
+function drawHeader(
+  page: PDFPage,
+  bold: PDFFont,
+  regular: PDFFont,
+  logo: PDFImage | null,
+) {
   page.drawRectangle({
     x: 0,
     y: 682,
@@ -277,17 +286,29 @@ function drawHeader(page: PDFPage, bold: PDFFont, regular: PDFFont) {
     height: 110,
     color: brand.ink,
   });
-  page.drawCircle({ x: 74, y: 735, size: 22, color: brand.accent });
-  page.drawText("G", { x: 61, y: 720, size: 30, font: bold, color: brand.ink });
-  page.drawText("GHOST AI SOLUTIONS", {
-    x: 112,
-    y: 744,
-    size: 13,
-    font: bold,
-    color: rgb(1, 1, 1),
-  });
+  if (logo) {
+    const width = 154;
+    const height = width * (logo.height / logo.width);
+    page.drawImage(logo, { x: 42, y: 706, width, height });
+  } else {
+    page.drawCircle({ x: 74, y: 735, size: 22, color: brand.accent });
+    page.drawText("G", {
+      x: 61,
+      y: 720,
+      size: 30,
+      font: bold,
+      color: brand.ink,
+    });
+    page.drawText("GHOST AI SOLUTIONS", {
+      x: 112,
+      y: 744,
+      size: 13,
+      font: bold,
+      color: rgb(1, 1, 1),
+    });
+  }
   page.drawText("Client Portal Acceptance Record", {
-    x: 112,
+    x: logo ? 214 : 112,
     y: 724,
     size: 10,
     font: regular,
@@ -300,6 +321,17 @@ function drawHeader(page: PDFPage, bold: PDFFont, regular: PDFFont) {
     font: bold,
     color: brand.accent,
   });
+}
+
+async function loadLogo(pdf: PDFDocument) {
+  try {
+    const logoBytes = await readFile(
+      path.join(process.cwd(), "public", "ghost-ai-logo.png"),
+    );
+    return pdf.embedPng(logoBytes);
+  } catch {
+    return null;
+  }
 }
 
 function drawFooter(page: PDFPage, regular: PDFFont) {
