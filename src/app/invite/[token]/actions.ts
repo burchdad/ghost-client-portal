@@ -14,26 +14,48 @@ const invitationSchema = z.object({
 });
 
 export async function acceptInvitationAction(formData: FormData) {
-  const parsed = invitationSchema.parse({
+  const token = String(formData.get("token") ?? "");
+  const parsed = invitationSchema.safeParse({
     token: formData.get("token"),
     email: formData.get("email"),
     name: formData.get("name"),
     password: formData.get("password"),
     acceptedTerms: formData.get("acceptedTerms"),
   });
-  const limit = checkRateLimit(`invite:${parsed.token.slice(-8)}`, {
+  if (!parsed.success) {
+    redirect(
+      `/invite/${token}?error=${encodeURIComponent(
+        "Password must be at least 12 characters and all fields are required.",
+      )}`,
+    );
+  }
+
+  const limit = checkRateLimit(`invite:${parsed.data.token.slice(-8)}`, {
     limit: 5,
     windowMs: 60_000,
   });
   if (!limit.allowed) {
-    throw new Error(
-      "Too many invitation attempts. Please wait a moment and try again.",
+    redirect(
+      `/invite/${parsed.data.token}?error=${encodeURIComponent(
+        "Too many invitation attempts. Please wait a moment and try again.",
+      )}`,
     );
   }
 
-  await acceptInvitation({
-    ...parsed,
-    acceptedTerms: parsed.acceptedTerms === "yes",
-  });
+  try {
+    await acceptInvitation({
+      ...parsed.data,
+      acceptedTerms: parsed.data.acceptedTerms === "yes",
+    });
+  } catch (error) {
+    redirect(
+      `/invite/${parsed.data.token}?error=${encodeURIComponent(
+        error instanceof Error
+          ? error.message
+          : "Invitation activation failed.",
+      )}`,
+    );
+  }
+
   redirect("/dashboard");
 }

@@ -3,10 +3,13 @@ import { getInvitationByToken } from "@/server/invitations/service";
 
 export default async function InvitePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { token } = await params;
+  const query = await searchParams;
   const invitation = await getInvitationByToken(token).catch(() => null);
 
   if (
@@ -40,6 +43,11 @@ export default async function InvitePage({
           {invitation.name}, activate your workspace for{" "}
           {invitation.organization.name}.
         </p>
+        {query.error ? (
+          <div className="mt-4 rounded-md border border-red-300/40 bg-red-500/10 p-3 text-sm text-red-100">
+            {query.error}
+          </div>
+        ) : null}
         <form action={acceptInvitationAction} className="mt-6 space-y-4">
           <input type="hidden" name="token" value={token} />
           <Field
@@ -49,7 +57,13 @@ export default async function InvitePage({
             defaultValue={invitation.email}
           />
           <Field label="Name" name="name" defaultValue={invitation.name} />
-          <Field label="Create password" name="password" type="password" />
+          <Field
+            label="Create password"
+            name="password"
+            type="password"
+            minLength={12}
+            help="Use at least 12 characters."
+          />
           <label className="flex gap-3 rounded-md border border-line p-3 text-sm text-muted">
             <input
               name="acceptedTerms"
@@ -77,11 +91,15 @@ function Field({
   name,
   type = "text",
   defaultValue,
+  minLength,
+  help,
 }: {
   label: string;
   name: string;
   type?: string;
   defaultValue?: string;
+  minLength?: number;
+  help?: string;
 }) {
   return (
     <label className="block">
@@ -90,9 +108,13 @@ function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
+        minLength={minLength}
         required
         className="mt-2 w-full rounded-md border border-line bg-black/20 px-3 py-3"
       />
+      {help ? (
+        <span className="mt-1 block text-xs text-muted">{help}</span>
+      ) : null}
     </label>
   );
 }
