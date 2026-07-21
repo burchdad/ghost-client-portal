@@ -29,43 +29,107 @@ export async function createTestRunAction(formData: FormData) {
 
 export async function sendTestProposalAction(formData: FormData) {
   const user = await requireInternalRole(["FOUNDER", "ADMINISTRATOR"]);
-  await sendTestProposal({
-    testRunId: String(formData.get("testRunId") ?? ""),
-    proposalToken: String(formData.get("proposalToken") ?? ""),
-    confirmation: String(formData.get("confirmation") ?? ""),
-    actorUserId: user.id,
+  const proposalToken = String(formData.get("proposalToken") ?? "");
+  let destination = withParams({
+    proposalToken,
+    notice: "Test proposal email sent.",
   });
+
+  try {
+    await sendTestProposal({
+      testRunId: String(formData.get("testRunId") ?? ""),
+      proposalToken,
+      confirmation: String(formData.get("confirmation") ?? ""),
+      actorUserId: user.id,
+    });
+  } catch (error) {
+    destination = withParams({
+      proposalToken,
+      error: errorMessage(error),
+    });
+  }
+
   revalidatePath(route);
+  redirect(destination);
 }
 
 export async function createTestInvitationAction(formData: FormData) {
   const user = await requireInternalRole(["FOUNDER", "ADMINISTRATOR"]);
-  const { token } = await createReviewedTestInvitation({
-    testRunId: String(formData.get("testRunId") ?? ""),
-    confirmation: String(formData.get("confirmation") ?? ""),
-    actorUserId: user.id,
+  let destination = withParams({
+    notice: "Reviewed test invitation created.",
   });
+
+  try {
+    const { token } = await createReviewedTestInvitation({
+      testRunId: String(formData.get("testRunId") ?? ""),
+      confirmation: String(formData.get("confirmation") ?? ""),
+      actorUserId: user.id,
+    });
+    destination = withParams({
+      invitationToken: token,
+      notice: "Reviewed test invitation created.",
+    });
+  } catch (error) {
+    destination = withParams({ error: errorMessage(error) });
+  }
+
   revalidatePath(route);
-  redirect(`${route}?invitationToken=${token}`);
+  redirect(destination);
 }
 
 export async function sendTestInvitationAction(formData: FormData) {
   const user = await requireInternalRole(["FOUNDER", "ADMINISTRATOR"]);
-  await sendTestInvitation({
-    testRunId: String(formData.get("testRunId") ?? ""),
-    invitationToken: String(formData.get("invitationToken") ?? ""),
-    confirmation: String(formData.get("confirmation") ?? ""),
-    actorUserId: user.id,
+  const invitationToken = String(formData.get("invitationToken") ?? "");
+  let destination = withParams({
+    invitationToken,
+    notice: "Test invitation email sent.",
   });
+
+  try {
+    await sendTestInvitation({
+      testRunId: String(formData.get("testRunId") ?? ""),
+      invitationToken,
+      confirmation: String(formData.get("confirmation") ?? ""),
+      actorUserId: user.id,
+    });
+  } catch (error) {
+    destination = withParams({
+      invitationToken,
+      error: errorMessage(error),
+    });
+  }
+
   revalidatePath(route);
+  redirect(destination);
 }
 
 export async function cleanupTestRunAction(formData: FormData) {
   const user = await requireInternalRole(["FOUNDER", "ADMINISTRATOR"]);
-  await cleanupTestRun({
-    testRunId: String(formData.get("testRunId") ?? ""),
-    confirmation: String(formData.get("confirmation") ?? ""),
-    actorUserId: user.id,
-  });
+  let destination = withParams({ notice: "Test run cleanup completed." });
+
+  try {
+    await cleanupTestRun({
+      testRunId: String(formData.get("testRunId") ?? ""),
+      confirmation: String(formData.get("confirmation") ?? ""),
+      actorUserId: user.id,
+    });
+  } catch (error) {
+    destination = withParams({ error: errorMessage(error) });
+  }
+
   revalidatePath(route);
+  redirect(destination);
+}
+
+function withParams(params: Record<string, string | null | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
+  const suffix = query.toString();
+  return suffix ? `${route}?${suffix}` : route;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Action failed.";
 }

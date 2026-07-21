@@ -27,6 +27,8 @@ export default async function ClientLifecycleTestingPage({
     proposalToken?: string;
     invitationToken?: string;
     created?: string;
+    error?: string;
+    notice?: string;
   }>;
 }) {
   await requireInternalRole(["FOUNDER", "ADMINISTRATOR"]);
@@ -67,6 +69,8 @@ export default async function ClientLifecycleTestingPage({
           value={invitationUrl ?? ""}
         />
       ) : null}
+      {query.error ? <Alert tone="error" message={query.error} /> : null}
+      {query.notice ? <Alert tone="success" message={query.notice} /> : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Info label="Status" value={testRunStatus(run)} />
@@ -248,6 +252,25 @@ export default async function ClientLifecycleTestingPage({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function Alert({
+  tone,
+  message,
+}: {
+  tone: "error" | "success";
+  message: string;
+}) {
+  const classes =
+    tone === "error"
+      ? "border-red-300/40 bg-red-500/10 text-red-100"
+      : "border-accent/30 bg-accent/10 text-accent";
+
+  return (
+    <div className={`rounded-lg border p-4 text-sm font-medium ${classes}`}>
+      {message}
+    </div>
   );
 }
 
