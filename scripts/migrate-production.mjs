@@ -5,10 +5,22 @@ import { loadProductionEnv, redactUrl } from "./production-env.mjs";
 
 loadProductionEnv();
 
-const requiredConfirmation = "APPLY PHASE 4.6 PRODUCTION MIGRATION";
 const targetMigration =
   process.env.PRODUCTION_MIGRATION_NAME ??
   "20260721040000_phase_4_6_launch_execution";
+const requiredConfirmations = {
+  "20260721040000_phase_4_6_launch_execution":
+    "APPLY PHASE 4.6 PRODUCTION MIGRATION",
+  "20260721050000_test_client_lifecycle":
+    "APPLY TEST CLIENT LIFECYCLE PRODUCTION MIGRATION",
+};
+const requiredConfirmation = requiredConfirmations[targetMigration];
+
+if (!requiredConfirmation) {
+  throw new Error(
+    `No production confirmation phrase is configured for ${targetMigration}.`,
+  );
+}
 
 function requireValue(name) {
   const value = process.env[name]?.trim();
@@ -96,7 +108,7 @@ function runMigrationStatusPreflight(npxCommand) {
       error.stdout?.toString?.() ?? "",
       error.stderr?.toString?.() ?? "",
     ].join("\n");
-    if (/Following migrations have not yet been applied/i.test(output)) {
+    if (/Following migration(?:s)? have not yet been applied/i.test(output)) {
       console.log(output.trim());
       return;
     }
