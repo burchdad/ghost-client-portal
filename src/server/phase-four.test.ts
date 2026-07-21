@@ -21,10 +21,16 @@ import {
 } from "@/server/placeholders";
 import { calculateProjectProgress } from "@/server/projects/progress";
 import {
+  acceptInvitation,
   createInvitation,
   generateInvitationToken,
   hashInvitationToken,
 } from "@/server/invitations/service";
+import { createSession } from "@/lib/auth/session";
+
+vi.mock("@/lib/auth/session", () => ({
+  createSession: vi.fn(),
+}));
 
 describe("environment safety", () => {
   it("rejects live Stripe keys outside production", () => {
@@ -204,6 +210,48 @@ describe("client lifecycle calculations", () => {
       }),
     ).rejects.toThrow(/placeholder/i);
     vi.unstubAllEnvs();
+  });
+
+  it("activates invited organizations when a client accepts their invitation", async () => {
+    const invitation = {
+      id: "invitation_1",
+      organizationId: "org_1",
+      email: "client@ghostai.solutions",
+      intendedRole: "OWNER",
+      revokedAt: null,
+      acceptedAt: null,
+      expiresAt: new Date(Date.now() + 1000 * 60),
+    };
+    const tx = {
+      user: { upsert: vi.fn().mockResolvedValue({ id: "user_1" }) },
+      organizationMembership: { upsert: vi.fn().mockResolvedValue({}) },
+      organization: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      invitation: { update: vi.fn().mockResolvedValue({}) },
+      activityEvent: { create: vi.fn().mockResolvedValue({}) },
+      notification: { create: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const db = {
+      invitation: { findUnique: vi.fn().mockResolvedValue(invitation) },
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (callback) => callback(tx)),
+    };
+
+    await acceptInvitation({
+      token: "invite-token",
+      email: "Client@GhostAI.Solutions",
+      name: "Client User",
+      password: "long-enough-password",
+      acceptedTerms: true,
+      db: db as never,
+    });
+
+    expect(tx.organization.updateMany).toHaveBeenCalledWith({
+      where: { id: "org_1", accountStatus: "INVITED" },
+      data: { accountStatus: "ACTIVE" },
+    });
+    expect(createSession).toHaveBeenCalledWith("user_1");
   });
 });
 

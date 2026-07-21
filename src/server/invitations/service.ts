@@ -157,6 +157,14 @@ export async function acceptInvitation(input: {
       },
     });
 
+    await tx.organization.updateMany({
+      where: {
+        id: invitation.organizationId,
+        accountStatus: "INVITED",
+      },
+      data: { accountStatus: "ACTIVE" },
+    });
+
     await tx.invitation.update({
       where: { id: invitation.id },
       data: {
