@@ -287,9 +287,8 @@ function drawHeader(
     color: brand.ink,
   });
   if (logo) {
-    const width = 154;
-    const height = width * (logo.height / logo.width);
-    page.drawImage(logo, { x: 42, y: 706, width, height });
+    const size = 88;
+    page.drawImage(logo, { x: 48, y: 694, width: size, height: size });
   } else {
     page.drawCircle({ x: 74, y: 735, size: 22, color: brand.accent });
     page.drawText("G", {
@@ -308,8 +307,8 @@ function drawHeader(
     });
   }
   page.drawText("Client Portal Acceptance Record", {
-    x: logo ? 214 : 112,
-    y: 724,
+    x: logo ? 164 : 112,
+    y: 722,
     size: 10,
     font: regular,
     color: rgb(0.72, 0.8, 0.88),
