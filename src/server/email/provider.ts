@@ -46,7 +46,8 @@ class ConsoleEmailProvider implements EmailProvider {
 
 class ResendEmailProvider implements EmailProvider {
   async send(message: EmailMessage) {
-    const apiKey = process.env.EMAIL_PROVIDER_API_KEY;
+    const apiKey =
+      process.env.RESEND_API_KEY ?? process.env.EMAIL_PROVIDER_API_KEY;
     const from = process.env.EMAIL_FROM;
 
     if (!apiKey || !from) {
@@ -90,10 +91,9 @@ class ResendEmailProvider implements EmailProvider {
 }
 
 export function getEmailProvider(): EmailProvider {
-  if (
-    process.env.EMAIL_PROVIDER_API_KEY &&
-    process.env.EMAIL_PROVIDER !== "console"
-  ) {
+  const apiKey =
+    process.env.RESEND_API_KEY ?? process.env.EMAIL_PROVIDER_API_KEY;
+  if (apiKey && process.env.EMAIL_PROVIDER !== "console") {
     return new ResendEmailProvider();
   }
 
