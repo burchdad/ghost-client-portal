@@ -73,8 +73,25 @@ export default async function InvitePage({
               className="mt-1"
             />
             <span>
-              I accept the Ghost AI Solutions client portal terms and understand
-              this invitation is for my organization only.
+              I accept the Ghost AI Solutions{" "}
+              <a
+                href="https://www.ghostai.solutions/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline-offset-4 hover:underline"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="https://www.ghostai.solutions/privacy-policy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline-offset-4 hover:underline"
+              >
+                Privacy Policy
+              </a>
+              , and understand this invitation is for my organization only.
             </span>
           </label>
           <button className="w-full rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950">
