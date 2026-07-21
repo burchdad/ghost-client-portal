@@ -19,7 +19,10 @@ import {
   normalizeSignature,
   signatureReasonablyMatches,
 } from "./validation";
-import { buildAcceptanceSummaryHtml } from "./summary";
+import {
+  buildAcceptanceSummaryHtml,
+  buildAcceptanceSummaryPdf,
+} from "./summary";
 
 describe("proposal tokens", () => {
   it("generates unique unguessable tokens and stable hashes", () => {
@@ -193,5 +196,53 @@ describe("snapshots and hashes", () => {
     expect(html).toContain("Proposal Acceptance Summary");
     expect(html).toContain("Gray Matters Technology");
     expect(html).toContain("Proposal content hash");
+  });
+
+  it("generates a branded PDF summary from the stored snapshot", async () => {
+    const proposal = getFixtureProposalByToken(grayMattersDevelopmentToken)!;
+    const snapshot = createProposalSnapshot(
+      proposal,
+      {
+        fullName: "Jane Client",
+        title: "Owner",
+        email: "jane@example.com",
+        typedSignature: "Jane Client",
+      },
+      new Date("2026-07-21T12:00:00.000Z"),
+    );
+    const pdf = await buildAcceptanceSummaryPdf({
+      id: "acceptance",
+      proposalId: proposal.id,
+      organizationId: proposal.organizationId,
+      signerName: "Jane Client",
+      signerTitle: "Owner",
+      signerEmail: "jane@example.com",
+      typedSignature: "Jane Client",
+      authorizedApproval: true,
+      reviewedScope: true,
+      acceptedPaymentSchedule: true,
+      acceptedTerms: true,
+      note: null,
+      purchaseOrderNumber: null,
+      proposalVersion: 1,
+      proposalVersionLabel: "v1",
+      proposalSnapshot: snapshot,
+      proposalContentHash: "a".repeat(64),
+      acceptancePayloadHash: "b".repeat(64),
+      acceptanceHash: "c".repeat(64),
+      invalidatedAt: null,
+      invalidatedById: null,
+      invalidationReason: null,
+      invalidationType: null,
+      ipAddress: null,
+      userAgent: null,
+      requestId: "request",
+      idempotencyKey: "idem",
+      acceptedAt: new Date("2026-07-21T12:00:00.000Z"),
+      createdAt: new Date("2026-07-21T12:00:00.000Z"),
+    });
+
+    expect(Buffer.from(pdf).subarray(0, 4).toString()).toBe("%PDF");
+    expect(pdf.length).toBeGreaterThan(1000);
   });
 });

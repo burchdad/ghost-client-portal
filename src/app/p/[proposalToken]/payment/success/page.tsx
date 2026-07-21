@@ -85,7 +85,7 @@ export default async function PaymentSuccessPage({
             href={`/p/${proposalToken}/acceptance-summary`}
             className="rounded-md border border-line px-4 py-3 text-center text-sm"
           >
-            Download Acceptance Summary
+            Download Acceptance PDF
           </a>
         </div>
       </section>

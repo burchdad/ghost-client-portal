@@ -98,7 +98,7 @@ export default async function PublicProposalPaymentPage({
               href={`/p/${proposalToken}/acceptance-summary`}
               className="block rounded-md border border-line px-4 py-3 text-center text-sm"
             >
-              Download Acceptance Summary
+              Download Acceptance PDF
             </a>
             <Link
               href={`/p/${proposalToken}`}

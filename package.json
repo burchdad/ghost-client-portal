@@ -25,6 +25,7 @@
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.25.0",
     "next": "^15.5.20",
+    "pdf-lib": "^1.17.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "stripe": "^22.3.2",

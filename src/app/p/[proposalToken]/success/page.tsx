@@ -70,7 +70,7 @@ export default async function PublicProposalSuccessPage({
             href={`/p/${proposalToken}/acceptance-summary`}
             className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950"
           >
-            Download Acceptance Summary
+            Download Acceptance PDF
           </a>
           <button
             disabled
