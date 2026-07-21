@@ -30,7 +30,10 @@ export function internalPaymentNotificationEmail(input: {
   };
 }
 
-export function paymentFailureEmail(input: { organization: string; proposal: string }) {
+export function paymentFailureEmail(input: {
+  organization: string;
+  proposal: string;
+}) {
   return {
     subject: `Payment not completed for ${input.proposal}`,
     html: `<p>The payment for ${input.organization} was not confirmed. The client can safely retry from the secure payment page.</p>`,

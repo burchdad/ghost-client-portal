@@ -25,14 +25,36 @@ export default async function PaymentSuccessPage({
   return (
     <main className="surface min-h-screen px-5 py-10">
       <section className="mx-auto max-w-3xl rounded-lg border border-line bg-panel p-6">
-        <p className="text-sm uppercase tracking-[0.24em] text-accent">Ghost AI Solutions</p>
+        <p className="text-sm uppercase tracking-[0.24em] text-accent">
+          Ghost AI Solutions
+        </p>
         <h1 className="mt-4 text-4xl font-semibold">{title}</h1>
         <p className="mt-3 text-muted">{state.proposal.title}</p>
         <dl className="mt-6 grid gap-4 text-sm md:grid-cols-2">
           <Info label="Organization" value={state.proposal.organization.name} />
-          <Info label="Deposit amount" value={state.deposit ? formatMoney(state.deposit.amountCents, state.proposal.currency) : "Pending"} />
-          <Info label="Payment date" value={state.payment?.paidAt ? state.payment.paidAt.toLocaleString() : "Not confirmed yet"} />
-          <Info label="Project status" value={state.project?.status ?? "Activation pending"} />
+          <Info
+            label="Deposit amount"
+            value={
+              state.deposit
+                ? formatMoney(
+                    state.deposit.amountCents,
+                    state.proposal.currency,
+                  )
+                : "Pending"
+            }
+          />
+          <Info
+            label="Payment date"
+            value={
+              state.payment?.paidAt
+                ? state.payment.paidAt.toLocaleString()
+                : "Not confirmed yet"
+            }
+          />
+          <Info
+            label="Project status"
+            value={state.project?.status ?? "Activation pending"}
+          />
         </dl>
         <p className="mt-6 rounded-md border border-line bg-white/[0.035] p-4 text-sm text-muted">
           {state.status === "confirmed"
@@ -43,15 +65,26 @@ export default async function PaymentSuccessPage({
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           {state.status === "failed" ? (
-            <Link href={`/p/${proposalToken}/payment`} className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950">
+            <Link
+              href={`/p/${proposalToken}/payment`}
+              className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950"
+            >
               Return to Payment
             </Link>
           ) : (
-            <Link href={state.project ? `/onboarding/${state.project.id}` : "/dashboard"} className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950">
+            <Link
+              href={
+                state.project ? `/onboarding/${state.project.id}` : "/dashboard"
+              }
+              className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950"
+            >
               Begin Onboarding
             </Link>
           )}
-          <a href={`/p/${proposalToken}/acceptance-summary`} className="rounded-md border border-line px-4 py-3 text-center text-sm">
+          <a
+            href={`/p/${proposalToken}/acceptance-summary`}
+            className="rounded-md border border-line px-4 py-3 text-center text-sm"
+          >
             Download Acceptance Summary
           </a>
         </div>

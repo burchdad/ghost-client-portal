@@ -18,10 +18,20 @@ export function ProposalView({
   return (
     <main className="surface min-h-screen px-5 py-6 print:bg-white print:text-slate-950">
       <div className="mx-auto max-w-5xl">
+        {proposal.isTestRecord ? (
+          <div className="mb-5 rounded-lg border border-amber-200/40 bg-amber-400/10 p-4 text-sm text-amber-50">
+            This is a controlled Ghost Client Portal test proposal and does not
+            represent a real commercial agreement.
+          </div>
+        ) : null}
         <header className="mb-8 flex items-start justify-between gap-4 border-b border-line pb-5 print:border-slate-300">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-accent">Ghost AI Solutions</p>
-            <h1 className="mt-3 text-4xl font-semibold md:text-6xl">{proposal.title}</h1>
+            <p className="text-sm uppercase tracking-[0.24em] text-accent">
+              Ghost AI Solutions
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold md:text-6xl">
+              {proposal.title}
+            </h1>
             <p className="mt-4 text-muted">{proposal.organization.name}</p>
           </div>
           <ProposalStatusBadge status={proposal.status} />
@@ -29,10 +39,30 @@ export function ProposalView({
 
         <section className="rounded-lg border border-line bg-panel p-5 print:border-slate-300 print:bg-white">
           <div className="grid gap-4 text-sm text-muted md:grid-cols-4">
-            <p>Proposal: <span className="text-foreground print:text-slate-950">{proposal.proposalNumber}</span></p>
-            <p>Prepared: <span className="text-foreground print:text-slate-950">{formatDate(proposal.sentAt ?? proposal.createdAt)}</span></p>
-            <p>Expires: <span className="text-foreground print:text-slate-950">{formatDate(proposal.expiresAt)}</span></p>
-            <p>Version: <span className="text-foreground print:text-slate-950">{proposal.versionLabel}</span></p>
+            <p>
+              Proposal:{" "}
+              <span className="text-foreground print:text-slate-950">
+                {proposal.proposalNumber}
+              </span>
+            </p>
+            <p>
+              Prepared:{" "}
+              <span className="text-foreground print:text-slate-950">
+                {formatDate(proposal.sentAt ?? proposal.createdAt)}
+              </span>
+            </p>
+            <p>
+              Expires:{" "}
+              <span className="text-foreground print:text-slate-950">
+                {formatDate(proposal.expiresAt)}
+              </span>
+            </p>
+            <p>
+              Version:{" "}
+              <span className="text-foreground print:text-slate-950">
+                {proposal.versionLabel}
+              </span>
+            </p>
           </div>
         </section>
 
@@ -73,19 +103,33 @@ export function ProposalView({
         ) : null}
         <ProposalSection title="Terms">
           <p>{proposal.terms}</p>
+          {proposal.isTestRecord ? (
+            <p className="mt-4 rounded-md border border-amber-200/40 bg-amber-400/10 p-3 text-sm text-amber-50">
+              Test acceptance only. Do not complete a live Stripe charge for
+              this proposal.
+            </p>
+          ) : null}
         </ProposalSection>
 
         <section className="sticky bottom-4 mt-8 rounded-lg border border-accent/30 bg-panel/95 p-4 shadow-2xl shadow-black/30 backdrop-blur print:hidden">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">
-              {accepted ? "This proposal has been accepted. Payment setup is next." : "Ready to move forward?"}
+              {accepted
+                ? "This proposal has been accepted. Payment setup is next."
+                : "Ready to move forward?"}
             </p>
             {accepted ? (
-              <Link href={`/p/${token}/success`} className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950">
+              <Link
+                href={`/p/${token}/success`}
+                className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+              >
                 View Confirmation
               </Link>
             ) : (
-              <Link href={`/p/${token}/accept`} className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950">
+              <Link
+                href={`/p/${token}/accept`}
+                className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+              >
                 Review and Accept Proposal
               </Link>
             )}

@@ -4,7 +4,10 @@ import { hashCanonical } from "./hashing";
 import { getPublicProposalAvailability } from "./repository";
 import { createProposalSnapshot, proposalContentForHash } from "./snapshot";
 import { isTokenExpired, isTokenRevoked } from "./tokens";
-import { canAcceptProposalStatus, transitionProposalStatus } from "./transitions";
+import {
+  canAcceptProposalStatus,
+  transitionProposalStatus,
+} from "./transitions";
 import type { AcceptanceInput } from "./validation";
 
 export type AcceptanceResult =
@@ -24,7 +27,10 @@ export async function acceptProposal(
 ): Promise<AcceptanceResult> {
   const availability = await getPublicProposalAvailability(input.token, { db });
 
-  if (availability.status === "unavailable" || availability.status === "expired") {
+  if (
+    availability.status === "unavailable" ||
+    availability.status === "expired"
+  ) {
     return { status: "unavailable", correlationId: availability.correlationId };
   }
 
@@ -34,7 +40,11 @@ export async function acceptProposal(
     return { status: "duplicate", token: input.token };
   }
 
-  if (!canAcceptProposalStatus(proposal.status) || isTokenExpired(proposal) || isTokenRevoked(proposal)) {
+  if (
+    !canAcceptProposalStatus(proposal.status) ||
+    isTokenExpired(proposal) ||
+    isTokenRevoked(proposal)
+  ) {
     return { status: "invalid-status", correlationId: crypto.randomUUID() };
   }
 
@@ -47,11 +57,23 @@ export async function acceptProposal(
         deliverables: { orderBy: { sortOrder: "asc" } },
         addOns: true,
         paymentSchedule: { orderBy: { sortOrder: "asc" } },
-        acceptances: { where: { OR: [{ idempotencyKey: input.idempotencyKey }, { proposalVersion: proposal.version }] } },
+        acceptances: {
+          where: {
+            OR: [
+              { idempotencyKey: input.idempotencyKey },
+              { proposalVersion: proposal.version },
+            ],
+          },
+        },
       },
     });
 
-    if (!fresh || !fresh.isPublic || fresh.deletedAt || !canAcceptProposalStatus(fresh.status)) {
+    if (
+      !fresh ||
+      !fresh.isPublic ||
+      fresh.deletedAt ||
+      !canAcceptProposalStatus(fresh.status)
+    ) {
       return { status: "invalid-status", correlationId: crypto.randomUUID() };
     }
 
@@ -82,7 +104,10 @@ export async function acceptProposal(
       },
       acceptedAt: acceptedAt.toISOString(),
     });
-    const acceptanceHash = hashCanonical({ proposalContentHash, acceptancePayloadHash });
+    const acceptanceHash = hashCanonical({
+      proposalContentHash,
+      acceptancePayloadHash,
+    });
 
     await tx.proposalAcceptance.create({
       data: {
@@ -185,7 +210,10 @@ export async function acceptProposal(
           entityId: fresh.id,
           ipAddress: metadata.ipAddress,
           userAgent: metadata.userAgent,
-          metadata: { requestId: metadata.requestId, proposalVersion: fresh.version },
+          metadata: {
+            requestId: metadata.requestId,
+            proposalVersion: fresh.version,
+          },
         },
       }),
       tx.notification.create({

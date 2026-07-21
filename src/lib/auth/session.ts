@@ -82,7 +82,10 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   return session?.user ?? null;
 }
 
-export async function authenticateWithPassword(email: string, password: string) {
+export async function authenticateWithPassword(
+  email: string,
+  password: string,
+) {
   const db = getDb();
   const user = await db.user.findUnique({
     where: { email: email.toLowerCase() },

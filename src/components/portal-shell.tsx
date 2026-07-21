@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { Bell, Building2, FolderKanban, Home, Settings, Shield, WalletCards } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  FolderKanban,
+  Home,
+  FlaskConical,
+  Settings,
+  Shield,
+  WalletCards,
+} from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 
@@ -17,6 +26,11 @@ const adminNav = [
   { href: "/admin/proposals", label: "Proposals", icon: Shield },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/payments", label: "Payments", icon: WalletCards },
+  {
+    href: "/admin/testing/client-lifecycle",
+    label: "Lifecycle Testing",
+    icon: FlaskConical,
+  },
   { href: "/admin/audit", label: "Audit", icon: Settings },
 ];
 
@@ -36,8 +50,13 @@ export function PortalShell({
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-line bg-panel/85 p-5 lg:block">
-        <Link href={mode === "admin" ? "/admin" : "/dashboard"} className="block">
-          <p className="text-xs uppercase tracking-[0.24em] text-accent">Ghost AI</p>
+        <Link
+          href={mode === "admin" ? "/admin" : "/dashboard"}
+          className="block"
+        >
+          <p className="text-xs uppercase tracking-[0.24em] text-accent">
+            Ghost AI
+          </p>
           <p className="mt-1 text-xl font-semibold">
             {mode === "admin" ? "Portal Admin" : "Client Portal"}
           </p>
@@ -53,6 +72,11 @@ export function PortalShell({
               >
                 <Icon size={17} aria-hidden />
                 {item.label}
+                {item.href.includes("/testing/") ? (
+                  <span className="ml-auto rounded-sm border border-amber-200/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100">
+                    TEST DATA ONLY
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -62,7 +86,9 @@ export function PortalShell({
       <div className="lg:pl-72">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-background/85 px-5 py-4 backdrop-blur">
           <div>
-            <p className="text-sm text-muted">{organizationName ?? "Ghost AI Solutions"}</p>
+            <p className="text-sm text-muted">
+              {organizationName ?? "Ghost AI Solutions"}
+            </p>
             <p className="font-medium">{user.name}</p>
           </div>
           <div className="flex items-center gap-2">

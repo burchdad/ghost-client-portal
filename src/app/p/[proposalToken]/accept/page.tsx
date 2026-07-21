@@ -20,7 +20,12 @@ export default async function PublicProposalAcceptPage({
   }
 
   if (availability.status === "expired") {
-    return <ProposalUnavailable title="Proposal expired" correlationId={availability.correlationId} />;
+    return (
+      <ProposalUnavailable
+        title="Proposal expired"
+        correlationId={availability.correlationId}
+      />
+    );
   }
 
   if (availability.status === "accepted") {
@@ -28,8 +33,13 @@ export default async function PublicProposalAcceptPage({
       <main className="surface grid min-h-screen place-items-center px-6 py-12">
         <section className="max-w-lg rounded-lg border border-line bg-panel p-6 text-center">
           <h1 className="text-3xl font-semibold">Proposal already accepted</h1>
-          <p className="mt-3 text-sm text-muted">The acceptance record is already on file.</p>
-          <Link href={`/p/${proposalToken}/success`} className="mt-5 inline-flex rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950">
+          <p className="mt-3 text-sm text-muted">
+            The acceptance record is already on file.
+          </p>
+          <Link
+            href={`/p/${proposalToken}/success`}
+            className="mt-5 inline-flex rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+          >
             View Confirmation
           </Link>
         </section>
@@ -48,21 +58,32 @@ export default async function PublicProposalAcceptPage({
           </Link>
           <h1 className="mt-5 text-4xl font-semibold">Accept and sign</h1>
           <p className="mt-4 text-muted">{proposal.organization.name}</p>
+          {proposal.isTestRecord ? (
+            <div className="mt-5 rounded-lg border border-amber-200/40 bg-amber-400/10 p-4 text-sm text-amber-50">
+              Test acceptance only. This does not represent a real commercial
+              agreement or charge authorization.
+            </div>
+          ) : null}
           <div className="mt-6 rounded-lg border border-line bg-panel p-5">
             <p className="text-sm text-muted">Proposal</p>
             <h2 className="mt-2 text-2xl font-semibold">{proposal.title}</h2>
             <p className="mt-3 text-sm text-muted">
-              Total investment: {formatMoney(proposal.totalCents, proposal.currency)}
+              Total investment:{" "}
+              {formatMoney(proposal.totalCents, proposal.currency)}
             </p>
           </div>
         </div>
         <section className="rounded-lg border border-line bg-panel p-6">
           <h2 className="text-2xl font-semibold">Authorized signatory</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Required confirmations are intentionally unchecked. Your typed signature will be stored with a tamper-evident acceptance snapshot.
+            Required confirmations are intentionally unchecked. Your typed
+            signature will be stored with a tamper-evident acceptance snapshot.
           </p>
           <div className="mt-6">
-            <ProposalAcceptanceForm token={proposalToken} idempotencyKey={createOpaqueToken(18)} />
+            <ProposalAcceptanceForm
+              token={proposalToken}
+              idempotencyKey={createOpaqueToken(18)}
+            />
           </div>
         </section>
       </section>

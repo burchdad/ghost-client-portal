@@ -13,3 +13,5 @@ Recovery indicators:
 Confirmed payments should not be charged again. Retry processing must reuse internal payment, schedule, proposal, and project identifiers.
 
 Refunds create an internal review trail and do not automatically cancel active projects.
+
+Internal recovery can retry post-payment activation only after a `Payment` is already `PAID`. It must not create a new Checkout Session, charge the client, or change the amount.

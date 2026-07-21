@@ -13,7 +13,10 @@ export function redactProposalToken(token: string) {
   return token.length <= 8 ? "[redacted]" : `[redacted:${token.slice(-6)}]`;
 }
 
-export function isTokenExpired(proposal: Pick<Proposal, "tokenExpiresAt" | "expiresAt">, now = new Date()) {
+export function isTokenExpired(
+  proposal: Pick<Proposal, "tokenExpiresAt" | "expiresAt">,
+  now = new Date(),
+) {
   const expiresAt = proposal.tokenExpiresAt ?? proposal.expiresAt;
   return Boolean(expiresAt && expiresAt <= now);
 }
@@ -26,7 +29,11 @@ export function hashesMatch(token: string, tokenHash: string) {
   return constantTimeEqual(hashProposalToken(token), tokenHash);
 }
 
-export async function rotateProposalToken(db: PrismaClient, proposalId: string, expiresAt?: Date) {
+export async function rotateProposalToken(
+  db: PrismaClient,
+  proposalId: string,
+  expiresAt?: Date,
+) {
   const token = generateProposalToken();
   const updated = await db.proposal.update({
     where: { id: proposalId },
@@ -41,7 +48,10 @@ export async function rotateProposalToken(db: PrismaClient, proposalId: string, 
   return { token, proposal: updated };
 }
 
-export async function revokeProposalToken(db: PrismaClient, proposalId: string) {
+export async function revokeProposalToken(
+  db: PrismaClient,
+  proposalId: string,
+) {
   return db.proposal.update({
     where: { id: proposalId },
     data: { tokenRevokedAt: new Date() },

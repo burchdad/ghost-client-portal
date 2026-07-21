@@ -35,7 +35,12 @@ const logoQuestions = [
   ["symbols_to_avoid", "Symbols or imagery to avoid", "textarea", false],
   ["required_wording", "Required wording", "text", true],
   ["industry_positioning", "Industry positioning", "textarea", false],
-  ["enterprise_requirements", "Government or enterprise requirements", "textarea", false],
+  [
+    "enterprise_requirements",
+    "Government or enterprise requirements",
+    "textarea",
+    false,
+  ],
   ["decision_makers", "Final decision-makers", "textarea", true],
   ["additional_notes", "Additional notes", "textarea", false],
 ] as const;
@@ -45,7 +50,9 @@ async function main() {
   const founderPassword = requiredEnv("FOUNDER_SEED_PASSWORD");
   const adminEmail = requiredEnv("ADMIN_SEED_EMAIL").toLowerCase();
   const adminPassword = requiredEnv("ADMIN_SEED_PASSWORD");
-  const clientEmail = process.env.GRAY_MATTERS_CLIENT_SEED_EMAIL?.toLowerCase() ?? "client@example.com";
+  const clientEmail =
+    process.env.GRAY_MATTERS_CLIENT_SEED_EMAIL?.toLowerCase() ??
+    "client@example.com";
   const clientPassword = requiredEnv("GRAY_MATTERS_CLIENT_SEED_PASSWORD");
 
   const founder = await prisma.user.upsert({
@@ -94,9 +101,18 @@ async function main() {
   });
 
   await prisma.organizationMembership.upsert({
-    where: { userId_organizationId: { userId: client.id, organizationId: organization.id } },
+    where: {
+      userId_organizationId: {
+        userId: client.id,
+        organizationId: organization.id,
+      },
+    },
     update: { role: "OWNER" },
-    create: { userId: client.id, organizationId: organization.id, role: "OWNER" },
+    create: {
+      userId: client.id,
+      organizationId: organization.id,
+      role: "OWNER",
+    },
   });
 
   const contact = await prisma.contact.upsert({
@@ -110,6 +126,14 @@ async function main() {
       email: client.email,
       title: client.title,
       isPrimary: true,
+    },
+  });
+
+  await prisma.organization.update({
+    where: { id: organization.id },
+    data: {
+      primaryContactId: contact.id,
+      billingContactId: contact.id,
     },
   });
 
@@ -128,22 +152,28 @@ async function main() {
               "Discovery, concept direction, logo refinement, production exports, color palette, typography recommendations, and mini brand guide.",
             defaultExclusions:
               "Full website redesign, naming, trademark search, paid font licensing, and extended campaign collateral are excluded unless added by change order.",
-            defaultTimeline: "Estimated two to three week delivery after onboarding materials are complete.",
+            defaultTimeline:
+              "Estimated two to three week delivery after onboarding materials are complete.",
             defaultDeliverables: logoDeliverables,
             defaultPaymentSchedule: [
               { label: "Deposit", paymentType: "DEPOSIT", amountCents: 75000 },
-              { label: "Final payment", paymentType: "REMAINING_BALANCE", amountCents: 75000 },
+              {
+                label: "Final payment",
+                paymentType: "REMAINING_BALANCE",
+                amountCents: 75000,
+              },
             ],
           }
         : {},
       create: {
         name: templateName,
         serviceCategory: templateName,
-        description:
-          isLogoRebrand
-            ? "A premium logo rebrand and mini brand identity refresh."
-            : `Reusable ${templateName} proposal template shell.`,
-        titlePattern: isLogoRebrand ? "Logo Rebrand and Brand Identity Refresh" : null,
+        description: isLogoRebrand
+          ? "A premium logo rebrand and mini brand identity refresh."
+          : `Reusable ${templateName} proposal template shell.`,
+        titlePattern: isLogoRebrand
+          ? "Logo Rebrand and Brand Identity Refresh"
+          : null,
         defaultSummary: isLogoRebrand
           ? "A premium logo rebrand and compact brand identity refresh for a modern technology organization."
           : null,
@@ -163,7 +193,11 @@ async function main() {
         defaultPaymentSchedule: isLogoRebrand
           ? [
               { label: "Deposit", paymentType: "DEPOSIT", amountCents: 75000 },
-              { label: "Final payment", paymentType: "REMAINING_BALANCE", amountCents: 75000 },
+              {
+                label: "Final payment",
+                paymentType: "REMAINING_BALANCE",
+                amountCents: 75000,
+              },
             ]
           : undefined,
         defaultTerms:
@@ -209,9 +243,12 @@ async function main() {
         "Discovery, concept direction, logo refinement, production exports, color palette, typography recommendations, and mini brand guide.",
       exclusions:
         "Full website redesign, naming, trademark search, paid font licensing, and extended campaign collateral are excluded unless added by change order.",
-      timeline: "Estimated two to three week delivery after onboarding materials are complete.",
-      pricingSummary: "Total investment is $1,500 with a $750 deposit and $750 final payment due upon completion and approval.",
-      terms: "Client approval and payment milestones are required before activation and final asset delivery.",
+      timeline:
+        "Estimated two to three week delivery after onboarding materials are complete.",
+      pricingSummary:
+        "Total investment is $1,500 with a $750 deposit and $750 final payment due upon completion and approval.",
+      terms:
+        "Client approval and payment milestones are required before activation and final asset delivery.",
       totalCents: 150000,
       status: "SENT",
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
@@ -220,7 +257,9 @@ async function main() {
     },
   });
 
-  await prisma.proposalDeliverable.deleteMany({ where: { proposalId: proposal.id } });
+  await prisma.proposalDeliverable.deleteMany({
+    where: { proposalId: proposal.id },
+  });
   await prisma.proposalDeliverable.createMany({
     data: logoDeliverables.map((name, index) => ({
       proposalId: proposal.id,
@@ -229,7 +268,9 @@ async function main() {
     })),
   });
 
-  await prisma.paymentScheduleItem.deleteMany({ where: { proposalId: proposal.id } });
+  await prisma.paymentScheduleItem.deleteMany({
+    where: { proposalId: proposal.id },
+  });
   await prisma.paymentScheduleItem.createMany({
     data: [
       {
@@ -255,14 +296,41 @@ async function main() {
     ],
   });
 
-  await prisma.proposalSection.deleteMany({ where: { proposalId: proposal.id } });
+  await prisma.proposalSection.deleteMany({
+    where: { proposalId: proposal.id },
+  });
   await prisma.proposalSection.createMany({
     data: [
-      { proposalId: proposal.id, title: "Executive Summary", body: proposal.executiveSummary, sortOrder: 1 },
-      { proposalId: proposal.id, title: "Objectives", body: proposal.objectives, sortOrder: 2 },
-      { proposalId: proposal.id, title: "Scope of Work", body: proposal.scopeOfWork, sortOrder: 3 },
-      { proposalId: proposal.id, title: "Timeline", body: proposal.timeline, sortOrder: 4 },
-      { proposalId: proposal.id, title: "Terms", body: proposal.terms, sortOrder: 5 },
+      {
+        proposalId: proposal.id,
+        title: "Executive Summary",
+        body: proposal.executiveSummary,
+        sortOrder: 1,
+      },
+      {
+        proposalId: proposal.id,
+        title: "Objectives",
+        body: proposal.objectives,
+        sortOrder: 2,
+      },
+      {
+        proposalId: proposal.id,
+        title: "Scope of Work",
+        body: proposal.scopeOfWork,
+        sortOrder: 3,
+      },
+      {
+        proposalId: proposal.id,
+        title: "Timeline",
+        body: proposal.timeline,
+        sortOrder: 4,
+      },
+      {
+        proposalId: proposal.id,
+        title: "Terms",
+        body: proposal.terms,
+        sortOrder: 5,
+      },
     ],
   });
 
@@ -289,9 +357,52 @@ async function main() {
   });
 
   await prisma.milestone.deleteMany({ where: { projectId: project.id } });
+  await prisma.projectPhase.deleteMany({ where: { projectId: project.id } });
+  await prisma.clientAction.deleteMany({ where: { projectId: project.id } });
+  await prisma.projectPhase.create({
+    data: {
+      projectId: project.id,
+      name: "Brand Discovery",
+      status: "Waiting on Client",
+      sortOrder: 1,
+      progress: 10,
+      clientVisibleDescription:
+        "Gather current brand assets, preferences, audience details, and approval context.",
+    },
+  });
+  await prisma.projectPhase.createMany({
+    data: [
+      [
+        "Creative Direction",
+        "Translate discovery inputs into a clear creative direction before concept development.",
+      ],
+      [
+        "Initial Concepts",
+        "Prepare first-round identity concepts for client review.",
+      ],
+      ["Client Review", "Review concepts and capture structured feedback."],
+      ["Revisions", "Refine the chosen direction based on approved feedback."],
+      ["Final Approval", "Confirm final logo and compact identity system."],
+      [
+        "Asset Delivery",
+        "Package final files and mini brand guide for client access.",
+      ],
+    ].map(([name, description], index) => ({
+      projectId: project.id,
+      name,
+      status: "Not Started",
+      sortOrder: index + 2,
+      progress: 0,
+      clientVisibleDescription: description,
+    })),
+  });
   await prisma.milestone.createMany({
     data: [
-      { projectId: project.id, name: "Onboarding questionnaire", status: "Waiting on Client" },
+      {
+        projectId: project.id,
+        name: "Onboarding questionnaire",
+        status: "Waiting on Client",
+      },
       { projectId: project.id, name: "Concept direction", status: "Planned" },
       { projectId: project.id, name: "Logo refinement", status: "Planned" },
       { projectId: project.id, name: "Final asset package", status: "Planned" },
@@ -304,20 +415,25 @@ async function main() {
     create: {
       name: "Logo Rebrand Onboarding",
       serviceCategory: "Logo Rebrand",
-      instructions: "Provide the materials and preferences Ghost needs to begin the logo refresh.",
+      instructions:
+        "Provide the materials and preferences Ghost needs to begin the logo refresh.",
     },
   });
 
-  await prisma.onboardingQuestion.deleteMany({ where: { templateId: onboardingTemplate.id } });
+  await prisma.onboardingQuestion.deleteMany({
+    where: { templateId: onboardingTemplate.id },
+  });
   await prisma.onboardingQuestion.createMany({
-    data: logoQuestions.map(([fieldKey, prompt, fieldType, required], index) => ({
-      templateId: onboardingTemplate.id,
-      fieldKey,
-      prompt,
-      fieldType,
-      required,
-      sortOrder: index + 1,
-    })),
+    data: logoQuestions.map(
+      ([fieldKey, prompt, fieldType, required], index) => ({
+        templateId: onboardingTemplate.id,
+        fieldKey,
+        prompt,
+        fieldType,
+        required,
+        sortOrder: index + 1,
+      }),
+    ),
   });
 
   await prisma.onboardingForm.upsert({
@@ -330,6 +446,64 @@ async function main() {
       templateId: onboardingTemplate.id,
       completionPercentage: 0,
     },
+  });
+
+  await prisma.clientAction.createMany({
+    data: [
+      {
+        organizationId: organization.id,
+        projectId: project.id,
+        relatedOnboardingFormId: "gray-matters-logo-onboarding",
+        title: "Complete Brand Discovery Questionnaire",
+        description:
+          "Share the brand context, audience, creative preferences, and approval details Ghost needs to begin.",
+        category: "ONBOARDING",
+        priority: "URGENT",
+        status: "PENDING",
+        dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+        clientVisibleInstructions:
+          "Open onboarding and complete all required discovery fields.",
+      },
+      {
+        organizationId: organization.id,
+        projectId: project.id,
+        title: "Upload Current Logo Files",
+        description:
+          "Upload existing logo files, marks, or working source files if available.",
+        category: "FILE_UPLOAD",
+        priority: "HIGH",
+        status: "PENDING",
+        dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+        clientVisibleInstructions:
+          "SVG, PNG, JPG, PDF, AI, EPS, and ZIP files are supported.",
+      },
+      {
+        organizationId: organization.id,
+        projectId: project.id,
+        title: "Upload Brand References",
+        description:
+          "Share examples of logos, colors, websites, or styles that help explain the preferred direction.",
+        category: "FILE_UPLOAD",
+        priority: "NORMAL",
+        status: "PENDING",
+        dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 10),
+        clientVisibleInstructions:
+          "Links and reference files are both helpful.",
+      },
+      {
+        organizationId: organization.id,
+        projectId: project.id,
+        title: "Confirm Final Decision-Makers",
+        description:
+          "Confirm who can approve the final creative direction and finished logo assets.",
+        category: "DECISION",
+        priority: "HIGH",
+        status: "PENDING",
+        dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+        clientVisibleInstructions:
+          "List the primary approver and any additional decision-makers in onboarding.",
+      },
+    ],
   });
 
   await prisma.notification.create({

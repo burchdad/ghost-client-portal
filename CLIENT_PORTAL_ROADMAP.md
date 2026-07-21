@@ -35,7 +35,7 @@ Implemented foundation:
 
 ## Phase 4
 
-Client dashboard depth, project overview, timeline, files, deliverables, and approvals.
+First real client lifecycle: environment separation, payment recovery, client dashboard, project workspace, onboarding, client actions, and invitations.
 
 ## Phase 5
 

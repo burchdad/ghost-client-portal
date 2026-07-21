@@ -21,3 +21,5 @@ No-op foundations:
 - `customer.subscription.deleted`
 
 Webhook processing is idempotent by Stripe event ID. Amount and currency are cross-checked against trusted internal records before payment confirmation.
+
+Webhook processing checks event livemode against `APP_ENV`. Mismatched events are recorded as recovery-required instead of marking payments paid.

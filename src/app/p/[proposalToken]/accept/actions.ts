@@ -3,7 +3,10 @@
 import { redirect } from "next/navigation";
 import { acceptProposal } from "@/server/proposals/acceptance";
 import { parseAcceptanceForm } from "@/server/proposals/validation";
-import { assertSameOriginSubmission, getSafeRequestMetadata } from "@/server/security/request";
+import {
+  assertSameOriginSubmission,
+  getSafeRequestMetadata,
+} from "@/server/security/request";
 import { checkRateLimit } from "@/server/security/rate-limit";
 
 export type AcceptProposalState = {
@@ -18,7 +21,10 @@ export async function acceptProposalAction(
   try {
     await assertSameOriginSubmission();
   } catch {
-    return { error: "This submission could not be verified. Refresh and try again.", fieldErrors: {} };
+    return {
+      error: "This submission could not be verified. Refresh and try again.",
+      fieldErrors: {},
+    };
   }
 
   const parsed = parseAcceptanceForm(formData);
@@ -27,19 +33,28 @@ export async function acceptProposalAction(
     return {
       error: null,
       fieldErrors: Object.fromEntries(
-        parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]),
+        parsed.error.issues.map((issue) => [
+          String(issue.path[0]),
+          issue.message,
+        ]),
       ),
     };
   }
 
   const metadata = await getSafeRequestMetadata();
-  const rateLimit = checkRateLimit(`accept:${metadata.ipAddress ?? "unknown"}:${parsed.data.token.slice(-6)}`, {
-    limit: 10,
-    windowMs: 60_000,
-  });
+  const rateLimit = checkRateLimit(
+    `accept:${metadata.ipAddress ?? "unknown"}:${parsed.data.token.slice(-6)}`,
+    {
+      limit: 10,
+      windowMs: 60_000,
+    },
+  );
 
   if (!rateLimit.allowed) {
-    return { error: "Too many attempts. Please wait a moment and try again.", fieldErrors: {} };
+    return {
+      error: "Too many attempts. Please wait a moment and try again.",
+      fieldErrors: {},
+    };
   }
 
   const result = await acceptProposal(parsed.data, metadata);

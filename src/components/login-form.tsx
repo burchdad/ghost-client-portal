@@ -35,7 +35,9 @@ export function LoginForm() {
           className="w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
         />
       </div>
-      {state.error ? <p className="text-sm text-red-300">{state.error}</p> : null}
+      {state.error ? (
+        <p className="text-sm text-red-300">{state.error}</p>
+      ) : null}
       <SubmitButton />
     </form>
   );

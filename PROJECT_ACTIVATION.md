@@ -13,3 +13,5 @@ Activation behavior:
 7. Emit outbox events for Mission Control synchronization.
 
 Activation is designed to be idempotent. A project is unique per accepted proposal, and onboarding is unique per project/template.
+
+Phase 4 activation also prepares logo-rebrand phases, milestones, and client actions. Re-running activation must not duplicate onboarding forms or client action records.

@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { hasInternalRole, hasOrganizationRole } from "@/lib/auth/permissions";
-import { calculateRemainingBalance, assertTrustedPaymentAmount } from "@/lib/payments";
-import { assertProposalTransition, canTransitionProposal } from "@/lib/proposals";
+import {
+  calculateRemainingBalance,
+  assertTrustedPaymentAmount,
+} from "@/lib/payments";
+import {
+  assertProposalTransition,
+  canTransitionProposal,
+} from "@/lib/proposals";
 import { createAcceptanceHash } from "@/lib/signatures";
-import { tenantOwnedWhere, tenantProjectWhere, tenantProposalWhere } from "@/lib/tenant-filters";
+import {
+  tenantOwnedWhere,
+  tenantProjectWhere,
+  tenantProposalWhere,
+} from "@/lib/tenant-filters";
 import { createNotificationInput } from "@/lib/notifications";
 import { isRetryableStripeEvent } from "@/lib/stripe-events";
 
@@ -25,17 +35,36 @@ describe("tenant scoped query filters", () => {
     expect(tenantProjectWhere("user_a", "project_a")).toMatchObject({
       id: "project_a",
       portalVisible: true,
-      organization: { memberships: { some: { userId: "user_a", deletedAt: null } } },
+      organization: {
+        memberships: { some: { userId: "user_a", deletedAt: null } },
+      },
     });
   });
 
   it("scopes proposals, files, payments, messages, requests, and deliverables by organization membership", () => {
-    expect(tenantProposalWhere("user_a", "proposal_a").organization.memberships.some.userId).toBe("user_a");
-    expect(tenantOwnedWhere("user_a", "file_a").organization.memberships.some.userId).toBe("user_a");
-    expect(tenantOwnedWhere("user_a", "payment_a").organization.memberships.some.userId).toBe("user_a");
-    expect(tenantOwnedWhere("user_a", "message_thread_a").organization.memberships.some.userId).toBe("user_a");
-    expect(tenantOwnedWhere("user_a", "request_a").organization.memberships.some.userId).toBe("user_a");
-    expect(tenantOwnedWhere("user_a", "deliverable_a").organization.memberships.some.userId).toBe("user_a");
+    expect(
+      tenantProposalWhere("user_a", "proposal_a").organization.memberships.some
+        .userId,
+    ).toBe("user_a");
+    expect(
+      tenantOwnedWhere("user_a", "file_a").organization.memberships.some.userId,
+    ).toBe("user_a");
+    expect(
+      tenantOwnedWhere("user_a", "payment_a").organization.memberships.some
+        .userId,
+    ).toBe("user_a");
+    expect(
+      tenantOwnedWhere("user_a", "message_thread_a").organization.memberships
+        .some.userId,
+    ).toBe("user_a");
+    expect(
+      tenantOwnedWhere("user_a", "request_a").organization.memberships.some
+        .userId,
+    ).toBe("user_a");
+    expect(
+      tenantOwnedWhere("user_a", "deliverable_a").organization.memberships.some
+        .userId,
+    ).toBe("user_a");
   });
 });
 
@@ -56,7 +85,9 @@ describe("proposal status transitions", () => {
     expect(canTransitionProposal("SENT", "VIEWED")).toBe(true);
     expect(canTransitionProposal("VIEWED", "APPROVED")).toBe(true);
     expect(canTransitionProposal("SENT", "ACTIVE")).toBe(false);
-    expect(() => assertProposalTransition("DECLINED", "ACTIVE")).toThrow(/cannot transition/);
+    expect(() => assertProposalTransition("DECLINED", "ACTIVE")).toThrow(
+      /cannot transition/,
+    );
   });
 });
 

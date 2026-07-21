@@ -4,6 +4,7 @@ import { getProposalPaymentContextByToken } from "@/server/payments/repository";
 import { evaluateDepositPaymentEligibility } from "@/server/payments/eligibility";
 import { createCheckoutMetadata } from "@/server/payments/metadata";
 import { getSafeRequestMetadata } from "@/server/security/request";
+import { validateRuntimeEnvironment } from "@/server/env";
 import { getStripeServerConfig } from "./config";
 import { getStripeClient } from "./client";
 import { getOrCreateStripeCustomer } from "./customers";
@@ -18,29 +19,67 @@ export type CheckoutCreationResult =
 export async function createProposalPaymentCheckoutSession(
   token: string,
   db: PrismaClient = getDb(),
+  options: { liveTestConfirmation?: string } = {},
 ): Promise<CheckoutCreationResult> {
   const config = getStripeServerConfig();
 
   if (!config.configured) {
-    return { status: "unavailable", reason: "stripe-not-configured", correlationId: crypto.randomUUID() };
+    return {
+      status: "unavailable",
+      reason: "stripe-not-configured",
+      correlationId: crypto.randomUUID(),
+    };
+  }
+
+  const runtime = validateRuntimeEnvironment({
+    environment: config.environment,
+  });
+  if (runtime.status === "BLOCKED") {
+    return {
+      status: "unavailable",
+      reason: "environment-not-ready",
+      correlationId: crypto.randomUUID(),
+    };
   }
 
   const requestMetadata = await getSafeRequestMetadata();
-  const proposal = await getProposalPaymentContextByToken(token, db).catch(() => null);
+  const proposal = await getProposalPaymentContextByToken(token, db).catch(
+    () => null,
+  );
   const eligibility = evaluateDepositPaymentEligibility(proposal);
 
   if (!eligibility.eligible) {
     if (eligibility.reason === "already-paid") {
-      return { status: "already-paid", redirectTo: `/p/${token}/payment/success` };
+      return {
+        status: "already-paid",
+        redirectTo: `/p/${token}/payment/success`,
+      };
     }
 
-    return { status: "unavailable", reason: eligibility.reason, correlationId: eligibility.correlationId };
+    return {
+      status: "unavailable",
+      reason: eligibility.reason,
+      correlationId: eligibility.correlationId,
+    };
   }
 
-  const existingUrl = eligibility.existingPayment?.metadata
-    && typeof eligibility.existingPayment.metadata === "object"
-    && "checkoutUrl" in eligibility.existingPayment.metadata
-    && typeof eligibility.existingPayment.metadata.checkoutUrl === "string"
+  if (
+    eligibility.proposal.isTestRecord &&
+    config.environment === "production" &&
+    options.liveTestConfirmation !== "CREATE UNPAID LIVE TEST CHECKOUT"
+  ) {
+    return {
+      status: "unavailable",
+      reason: "live-test-checkout-confirmation-required",
+      correlationId: crypto.randomUUID(),
+    };
+  }
+
+  const existingUrl =
+    eligibility.existingPayment?.metadata &&
+    typeof eligibility.existingPayment.metadata === "object" &&
+    "checkoutUrl" in eligibility.existingPayment.metadata &&
+    typeof eligibility.existingPayment.metadata.checkoutUrl === "string"
       ? eligibility.existingPayment.metadata.checkoutUrl
       : null;
 
@@ -48,7 +87,10 @@ export async function createProposalPaymentCheckoutSession(
     return { status: "reused", url: existingUrl };
   }
 
-  const customerId = await getOrCreateStripeCustomer(eligibility.proposal.organizationId, db);
+  const customerId = await getOrCreateStripeCustomer(
+    eligibility.proposal.organizationId,
+    db,
+  );
   const internalPayment = await db.$transaction(async (tx) => {
     const existing = await tx.payment.findFirst({
       where: {
@@ -68,11 +110,17 @@ export async function createProposalPaymentCheckoutSession(
         projectId: eligibility.proposal.projects[0]?.id,
         paymentScheduleItemId: eligibility.depositItem.id,
         paymentType: "DEPOSIT",
+        isTestRecord: eligibility.proposal.isTestRecord,
+        testRunId: eligibility.proposal.testRunId,
         status: "PENDING",
         amountCents: eligibility.depositItem.amountCents,
         currency: eligibility.depositItem.currency,
         stripeCustomerId: customerId,
-        idempotencyKey: stripeIdempotencyKey(["payment", "deposit", eligibility.depositItem.id]),
+        idempotencyKey: stripeIdempotencyKey([
+          "payment",
+          "deposit",
+          eligibility.depositItem.id,
+        ]),
         requestId: requestMetadata.requestId,
         metadata: { proposalNumber: eligibility.proposal.proposalNumber },
       },
@@ -98,7 +146,10 @@ export async function createProposalPaymentCheckoutSession(
   });
 
   if (internalPayment.status === "PAID") {
-    return { status: "already-paid", redirectTo: `/p/${token}/payment/success` };
+    return {
+      status: "already-paid",
+      redirectTo: `/p/${token}/payment/success`,
+    };
   }
 
   const stripe = getStripeClient();
@@ -111,7 +162,7 @@ export async function createProposalPaymentCheckoutSession(
     internalPaymentId: internalPayment.id,
     paymentType: "DEPOSIT",
     projectId: eligibility.proposal.projects[0]?.id,
-    environment: process.env.NODE_ENV ?? "development",
+    environment: config.environment,
     requestId: requestMetadata.requestId,
   });
 
@@ -119,7 +170,9 @@ export async function createProposalPaymentCheckoutSession(
     {
       mode: "payment",
       customer: customerId,
-      customer_email: customerId ? undefined : eligibility.proposal.organization.contacts[0]?.email,
+      customer_email: customerId
+        ? undefined
+        : eligibility.proposal.organization.contacts[0]?.email,
       client_reference_id: internalPayment.id,
       billing_address_collection: "auto",
       allow_promotion_codes: false,
@@ -144,7 +197,12 @@ export async function createProposalPaymentCheckoutSession(
       expires_at: Math.floor(Date.now() / 1000) + 60 * 30,
     },
     {
-      idempotencyKey: stripeIdempotencyKey(["checkout", "create", eligibility.depositItem.id, internalPayment.id]),
+      idempotencyKey: stripeIdempotencyKey([
+        "checkout",
+        "create",
+        eligibility.depositItem.id,
+        internalPayment.id,
+      ]),
     },
   );
 
@@ -152,9 +210,17 @@ export async function createProposalPaymentCheckoutSession(
   if (!checkoutUrl) {
     await db.payment.update({
       where: { id: internalPayment.id },
-      data: { status: "RECOVERY_REQUIRED", recoveryRequired: true, recoveryReason: "Stripe session did not return a URL." },
+      data: {
+        status: "RECOVERY_REQUIRED",
+        recoveryRequired: true,
+        recoveryReason: "Stripe session did not return a URL.",
+      },
     });
-    return { status: "unavailable", reason: "checkout-url-missing", correlationId: crypto.randomUUID() };
+    return {
+      status: "unavailable",
+      reason: "checkout-url-missing",
+      correlationId: crypto.randomUUID(),
+    };
   }
 
   await db.$transaction(async (tx) => {
@@ -163,7 +229,10 @@ export async function createProposalPaymentCheckoutSession(
       data: {
         status: "CHECKOUT_CREATED",
         stripeCheckoutId: session.id,
-        metadata: { checkoutUrl, proposalNumber: eligibility.proposal.proposalNumber },
+        metadata: {
+          checkoutUrl,
+          proposalNumber: eligibility.proposal.proposalNumber,
+        },
       },
     });
     await tx.paymentScheduleItem.update({

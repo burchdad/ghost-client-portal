@@ -10,8 +10,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke:production": "node scripts/production-smoke.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
+    "inspect:production": "node scripts/inspect-production.mjs",
+    "migrate:production": "node scripts/migrate-production.mjs",
+    "readiness:gray-matters": "node scripts/readiness-gray-matters.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed"

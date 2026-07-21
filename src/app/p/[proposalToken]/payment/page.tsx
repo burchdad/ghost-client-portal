@@ -13,15 +13,24 @@ export default async function PublicProposalPaymentPage({
   const state = await getPaymentPageState(proposalToken);
 
   if (state.status === "unavailable") {
-    return <ProposalUnavailable title="Payment unavailable" correlationId={state.correlationId} />;
+    return (
+      <ProposalUnavailable
+        title="Payment unavailable"
+        correlationId={state.correlationId}
+      />
+    );
   }
 
   return (
     <main className="surface min-h-screen px-5 py-10">
       <section className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-accent">Ghost AI Solutions</p>
-          <h1 className="mt-4 text-4xl font-semibold">Secure deposit payment</h1>
+          <p className="text-sm uppercase tracking-[0.24em] text-accent">
+            Ghost AI Solutions
+          </p>
+          <h1 className="mt-4 text-4xl font-semibold">
+            Secure deposit payment
+          </h1>
           <p className="mt-4 text-muted">{state.proposal.organization.name}</p>
           <div className="mt-6 rounded-lg border border-line bg-panel p-5">
             <p className="text-sm text-muted">Accepted by</p>
@@ -32,27 +41,69 @@ export default async function PublicProposalPaymentPage({
         <section className="rounded-lg border border-line bg-panel p-6">
           <h2 className="text-2xl font-semibold">{state.proposal.title}</h2>
           <dl className="mt-6 space-y-4 text-sm">
-            <Row label="Contract total" value={formatMoney(state.contractTotalCents, state.proposal.currency)} />
-            <Row label="Amount already paid" value={formatMoney(state.amountPaidCents, state.proposal.currency)} />
-            <Row label="Deposit due" value={formatMoney(state.depositDueCents, state.proposal.currency)} />
-            <Row label="Remaining after deposit" value={formatMoney(state.remainingAfterDepositCents, state.proposal.currency)} />
+            <Row
+              label="Contract total"
+              value={formatMoney(
+                state.contractTotalCents,
+                state.proposal.currency,
+              )}
+            />
+            <Row
+              label="Amount already paid"
+              value={formatMoney(
+                state.amountPaidCents,
+                state.proposal.currency,
+              )}
+            />
+            <Row
+              label="Deposit due"
+              value={formatMoney(
+                state.depositDueCents,
+                state.proposal.currency,
+              )}
+            />
+            <Row
+              label="Remaining after deposit"
+              value={formatMoney(
+                state.remainingAfterDepositCents,
+                state.proposal.currency,
+              )}
+            />
           </dl>
           <p className="mt-6 rounded-md border border-line bg-white/[0.035] p-4 text-sm text-muted">
-            Checkout is created server-side from trusted proposal records. Stripe webhooks confirm payment status; this page does not mark payments successful.
+            Checkout is created server-side from trusted proposal records.
+            Stripe webhooks confirm payment status; this page does not mark
+            payments successful.
           </p>
+          {state.proposal.isTestRecord ? (
+            <p className="mt-4 rounded-md border border-amber-200/40 bg-amber-400/10 p-4 text-sm text-amber-50">
+              Live Stripe mode may be active. Do not enter card information for
+              this test. Creating an unpaid live test checkout requires explicit
+              confirmation.
+            </p>
+          ) : null}
           <div className="mt-6 space-y-3">
             <CheckoutButton
               token={proposalToken}
               label={`Pay ${formatMoney(state.depositDueCents, state.proposal.currency)} Deposit`}
               disabled={!state.stripeConfigured}
+              requireLiveTestConfirmation={state.proposal.isTestRecord}
             />
             {!state.stripeConfigured ? (
-              <p className="text-sm text-muted">{state.stripeUnavailableReason}</p>
+              <p className="text-sm text-muted">
+                {state.stripeUnavailableReason}
+              </p>
             ) : null}
-            <a href={`/p/${proposalToken}/acceptance-summary`} className="block rounded-md border border-line px-4 py-3 text-center text-sm">
+            <a
+              href={`/p/${proposalToken}/acceptance-summary`}
+              className="block rounded-md border border-line px-4 py-3 text-center text-sm"
+            >
               Download Acceptance Summary
             </a>
-            <Link href={`/p/${proposalToken}`} className="block rounded-md border border-line px-4 py-3 text-center text-sm">
+            <Link
+              href={`/p/${proposalToken}`}
+              className="block rounded-md border border-line px-4 py-3 text-center text-sm"
+            >
               Review Proposal Terms
             </Link>
           </div>

@@ -34,7 +34,10 @@ export async function ensureOnboardingForProject(
       eventType: "onboarding.created",
       aggregateType: "OnboardingForm",
       aggregateId: form.id,
-      payload: { organizationId: input.organizationId, projectId: input.projectId },
+      payload: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+      },
     },
   });
 

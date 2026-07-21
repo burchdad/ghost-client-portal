@@ -9,7 +9,10 @@ export const internalRoles: InternalRole[] = [
   "SUPPORT_AGENT",
 ];
 
-export const billingRoles: OrganizationRole[] = ["OWNER", "BILLING_ADMINISTRATOR"];
+export const billingRoles: OrganizationRole[] = [
+  "OWNER",
+  "BILLING_ADMINISTRATOR",
+];
 
 export const projectAccessRoles: OrganizationRole[] = [
   "OWNER",

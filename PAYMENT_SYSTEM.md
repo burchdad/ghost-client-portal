@@ -19,3 +19,5 @@ Gray Matters values:
 - Final balance: `75000` cents
 
 Database-backed checkout creation requires a reachable PostgreSQL database. Real Checkout requires Stripe test-mode credentials.
+
+Phase 4 adds environment mode enforcement. Live keys are valid only in production, and staging/local verification must use test-mode Stripe keys against a separate database.

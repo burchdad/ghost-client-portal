@@ -6,7 +6,9 @@ export default function HomePage() {
     <main className="surface min-h-screen px-6 py-8">
       <nav className="mx-auto flex max-w-6xl items-center justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-accent">Ghost AI Solutions</p>
+          <p className="text-sm uppercase tracking-[0.24em] text-accent">
+            Ghost AI Solutions
+          </p>
           <h1 className="text-2xl font-semibold">Client Portal</h1>
         </div>
         <Link
@@ -25,11 +27,13 @@ export default function HomePage() {
             Premium account headquarters
           </p>
           <h2 className="text-5xl font-semibold leading-tight text-balance md:text-7xl">
-            Know what Ghost is building, what is owed, and what needs your approval.
+            Know what Ghost is building, what is owed, and what needs your
+            approval.
           </h2>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            A secure, client-facing layer for proposals, projects, payments, onboarding, and
-            deliverables. Mission Control remains the internal source of truth.
+            A secure, client-facing layer for proposals, projects, payments,
+            onboarding, and deliverables. Mission Control remains the internal
+            source of truth.
           </p>
         </div>
 
@@ -48,7 +52,10 @@ export default function HomePage() {
               "Tenant-isolated dashboard",
               "Internal-only administration boundary",
             ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-md bg-white/[0.04] p-3">
+              <div
+                key={item}
+                className="flex items-center gap-3 rounded-md bg-white/[0.04] p-3"
+              >
                 <LockKeyhole size={16} className="text-accent" aria-hidden />
                 <span className="text-sm">{item}</span>
               </div>

@@ -11,7 +11,10 @@ const loginSchema = z.object({
 
 export type LoginState = { error: string | null };
 
-export async function loginAction(_previousState: LoginState, formData: FormData): Promise<LoginState> {
+export async function loginAction(
+  _previousState: LoginState,
+  formData: FormData,
+): Promise<LoginState> {
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -21,7 +24,10 @@ export async function loginAction(_previousState: LoginState, formData: FormData
     return { error: "Enter a valid email and password." };
   }
 
-  const user = await authenticateWithPassword(parsed.data.email, parsed.data.password);
+  const user = await authenticateWithPassword(
+    parsed.data.email,
+    parsed.data.password,
+  );
 
   if (!user) {
     return { error: "Those credentials do not match an active portal user." };

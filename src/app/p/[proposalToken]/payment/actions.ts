@@ -1,7 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { assertSameOriginSubmission, getSafeRequestMetadata } from "@/server/security/request";
+import {
+  assertSameOriginSubmission,
+  getSafeRequestMetadata,
+} from "@/server/security/request";
 import { checkRateLimit } from "@/server/security/rate-limit";
 import { createProposalPaymentCheckoutSession } from "@/server/stripe/checkout";
 
@@ -14,21 +17,31 @@ export async function createCheckoutSessionAction(
   try {
     await assertSameOriginSubmission();
   } catch {
-    return { error: "This payment request could not be verified. Refresh and try again." };
+    return {
+      error:
+        "This payment request could not be verified. Refresh and try again.",
+    };
   }
 
   const token = String(formData.get("token") ?? "");
   const metadata = await getSafeRequestMetadata();
-  const rateLimit = checkRateLimit(`checkout:${metadata.ipAddress ?? "unknown"}:${token.slice(-6)}`, {
-    limit: 6,
-    windowMs: 60_000,
-  });
+  const rateLimit = checkRateLimit(
+    `checkout:${metadata.ipAddress ?? "unknown"}:${token.slice(-6)}`,
+    {
+      limit: 6,
+      windowMs: 60_000,
+    },
+  );
 
   if (!rateLimit.allowed) {
-    return { error: "Too many checkout attempts. Please wait a moment and try again." };
+    return {
+      error: "Too many checkout attempts. Please wait a moment and try again.",
+    };
   }
 
-  const result = await createProposalPaymentCheckoutSession(token);
+  const result = await createProposalPaymentCheckoutSession(token, undefined, {
+    liveTestConfirmation: String(formData.get("liveTestConfirmation") ?? ""),
+  });
 
   if (result.status === "created" || result.status === "reused") {
     redirect(result.url);

@@ -1,7 +1,11 @@
 import { PortalShell } from "@/components/portal-shell";
 import { requireOrganizationMembership } from "@/lib/auth/guards";
 
-export default async function ClientLayout({ children }: { children: React.ReactNode }) {
+export default async function ClientLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, organization } = await requireOrganizationMembership();
 
   return (

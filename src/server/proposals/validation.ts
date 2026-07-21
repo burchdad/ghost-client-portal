@@ -4,9 +4,17 @@ export const acceptanceSchema = z
   .object({
     token: z.string().min(20).max(256),
     idempotencyKey: z.string().min(16).max(128),
-    signerName: z.string().trim().min(2, "Enter your full legal name.").max(120),
+    signerName: z
+      .string()
+      .trim()
+      .min(2, "Enter your full legal name.")
+      .max(120),
     signerTitle: z.string().trim().min(2, "Enter your job title.").max(120),
-    signerEmail: z.string().trim().email("Enter a valid email address.").max(180),
+    signerEmail: z
+      .string()
+      .trim()
+      .email("Enter a valid email address.")
+      .max(180),
     typedSignature: z.string().trim().min(2, "Type your signature.").max(120),
     authorizedApproval: z.literal("on", {
       message: "Confirm you are authorized to approve this proposal.",
@@ -80,5 +88,8 @@ export function signatureReasonablyMatches(name: string, signature: string) {
     return false;
   }
 
-  return nameParts[0] === signatureParts[0] && nameParts.at(-1) === signatureParts.at(-1);
+  return (
+    nameParts[0] === signatureParts[0] &&
+    nameParts.at(-1) === signatureParts.at(-1)
+  );
 }

@@ -66,3 +66,7 @@ Database-backed verification still requires a reachable PostgreSQL `DATABASE_URL
 ## Deployment
 
 Deploy on Vercel as a standard Next.js app. Configure the production domain as `clientportal.ghostai.solutions`, set all required environment variables, run Prisma migrations against production PostgreSQL, then seed only approved bootstrap users.
+
+## Environment Safety
+
+Use `APP_ENV` to separate `local`, `staging`, and `production`. Production uses live Stripe credentials. Local and staging must use test Stripe credentials against a non-production database. See `ENVIRONMENT_STRATEGY.md`.

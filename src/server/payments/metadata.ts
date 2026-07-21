@@ -15,7 +15,9 @@ export function createCheckoutMetadata(input: CheckoutMetadata) {
   };
 }
 
-export function parseCheckoutMetadata(metadata: Record<string, string> | null | undefined) {
+export function parseCheckoutMetadata(
+  metadata: Record<string, string> | null | undefined,
+) {
   if (!metadata) {
     throw new Error("Stripe metadata is missing.");
   }
@@ -35,5 +37,6 @@ export function parseCheckoutMetadata(metadata: Record<string, string> | null | 
     }
   }
 
-  return metadata as Record<(typeof required)[number], string> & Record<string, string>;
+  return metadata as Record<(typeof required)[number], string> &
+    Record<string, string>;
 }

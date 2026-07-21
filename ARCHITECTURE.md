@@ -21,3 +21,7 @@ Acceptance creates a deterministic snapshot of the proposal content and signator
 Payment behavior lives in `src/server/payments`, `src/server/stripe`, `src/server/projects`, and `src/server/onboarding`. Public routes collect only the proposal token and invoke server-side services. The browser never supplies amount, currency, payment type, proposal status, or activation state.
 
 Checkout creation prepares an internal `Payment`, calls Stripe Checkout with deterministic idempotency keys, then stores the returned Checkout Session ID. Webhooks verify signatures, persist Stripe event IDs, cross-check amount/currency against trusted records, and activate projects idempotently after confirmed deposits.
+
+## Phase 4 Client Lifecycle
+
+Phase 4 adds the first usable authenticated client lifecycle: environment separation, organization-scoped dashboard data, project workspace services, client actions, onboarding submission, invitations, lifecycle integrity warnings, and payment recovery. Client routes must query through tenant-scoped services and never expose internal notes, raw Stripe IDs, raw proposal tokens, or recovery internals.

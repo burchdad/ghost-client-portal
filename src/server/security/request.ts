@@ -2,7 +2,10 @@ import { headers } from "next/headers";
 
 export async function getSafeRequestMetadata() {
   const headerStore = await headers();
-  const forwardedFor = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const forwardedFor = headerStore
+    .get("x-forwarded-for")
+    ?.split(",")[0]
+    ?.trim();
 
   return {
     requestId: headerStore.get("x-request-id") ?? crypto.randomUUID(),

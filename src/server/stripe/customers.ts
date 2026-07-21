@@ -19,7 +19,9 @@ export async function getOrCreateStripeCustomer(
 
   if (organization.stripeCustomerId) {
     try {
-      const existing = await stripe.customers.retrieve(organization.stripeCustomerId);
+      const existing = await stripe.customers.retrieve(
+        organization.stripeCustomerId,
+      );
       if (!("deleted" in existing && existing.deleted)) {
         await db.organization.update({
           where: { id: organization.id },
@@ -39,7 +41,13 @@ export async function getOrCreateStripeCustomer(
       email: primaryContact?.email,
       metadata: { organizationId: organization.id },
     },
-    { idempotencyKey: stripeIdempotencyKey(["customer", "create", organization.id]) },
+    {
+      idempotencyKey: stripeIdempotencyKey([
+        "customer",
+        "create",
+        organization.id,
+      ]),
+    },
   );
 
   await db.organization.update({

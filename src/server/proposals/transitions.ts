@@ -1,5 +1,8 @@
 import type { Prisma, PrismaClient, ProposalStatus } from "@prisma/client";
-import { assertProposalTransition, canTransitionProposal } from "@/lib/proposals";
+import {
+  assertProposalTransition,
+  canTransitionProposal,
+} from "@/lib/proposals";
 
 export async function transitionProposalStatus(
   tx: Prisma.TransactionClient | PrismaClient,
@@ -60,7 +63,11 @@ export async function transitionProposalStatus(
         eventType: `proposal.${input.to.toLowerCase()}`,
         aggregateType: "Proposal",
         aggregateId: input.proposalId,
-        payload: { proposalId: input.proposalId, from: input.from, to: input.to },
+        payload: {
+          proposalId: input.proposalId,
+          from: input.from,
+          to: input.to,
+        },
       },
     }),
   ]);
@@ -73,7 +80,12 @@ export function canAdvanceToViewed(status: ProposalStatus) {
 }
 
 export function canAcceptProposalStatus(status: ProposalStatus) {
-  return status === "VIEWED" || status === "SENT" || status === "APPROVED" || status === "SIGNATURE_PENDING";
+  return (
+    status === "VIEWED" ||
+    status === "SENT" ||
+    status === "APPROVED" ||
+    status === "SIGNATURE_PENDING"
+  );
 }
 
 export { canTransitionProposal };

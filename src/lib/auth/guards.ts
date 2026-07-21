@@ -1,6 +1,11 @@
 import type { InternalRole, OrganizationRole } from "@prisma/client";
 import { redirect } from "next/navigation";
-import { billingRoles, hasInternalRole, hasOrganizationRole, projectAccessRoles } from "@/lib/auth/permissions";
+import {
+  billingRoles,
+  hasInternalRole,
+  hasOrganizationRole,
+  projectAccessRoles,
+} from "@/lib/auth/permissions";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 
@@ -58,7 +63,9 @@ export async function requireOrganizationRole(
   const context = await requireOrganizationMembership(organizationId);
 
   if (!hasOrganizationRole(context.membership.role, roles)) {
-    throw new AuthorizationError("The requested organization role is required.");
+    throw new AuthorizationError(
+      "The requested organization role is required.",
+    );
   }
 
   return context;

@@ -15,11 +15,17 @@ const allowedTransitions: Record<ProposalStatus, ProposalStatus[]> = {
   CANCELLED: [],
 };
 
-export function canTransitionProposal(from: ProposalStatus, to: ProposalStatus) {
+export function canTransitionProposal(
+  from: ProposalStatus,
+  to: ProposalStatus,
+) {
   return allowedTransitions[from].includes(to);
 }
 
-export function assertProposalTransition(from: ProposalStatus, to: ProposalStatus) {
+export function assertProposalTransition(
+  from: ProposalStatus,
+  to: ProposalStatus,
+) {
   if (!canTransitionProposal(from, to)) {
     throw new Error(`Proposal cannot transition from ${from} to ${to}.`);
   }

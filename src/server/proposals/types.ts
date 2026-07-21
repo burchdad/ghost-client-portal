@@ -38,7 +38,11 @@ export type AcceptanceSnapshot = {
   timeline: string;
   totalCents: number;
   currency: string;
-  paymentSchedule: Array<{ label: string; amountCents: number; paymentType: string }>;
+  paymentSchedule: Array<{
+    label: string;
+    amountCents: number;
+    paymentType: string;
+  }>;
   terms: string;
   selectedAddOns: Array<{ name: string; priceCents: number }>;
   signatory: {

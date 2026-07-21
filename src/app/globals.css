@@ -36,6 +36,10 @@ body {
 
 .surface {
   background:
-    radial-gradient(circle at 20% 0%, rgba(119, 216, 194, 0.13), transparent 28rem),
+    radial-gradient(
+      circle at 20% 0%,
+      rgba(119, 216, 194, 0.13),
+      transparent 28rem
+    ),
     linear-gradient(135deg, #080b10 0%, #101721 46%, #0d1118 100%);
 }

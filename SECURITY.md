@@ -34,3 +34,12 @@ Required production practices:
 - Amount and currency are cross-checked against internal payment and payment schedule records.
 - Redirect success pages query persisted payment state and never mark payment successful.
 - Refunds create internal review signals; clients cannot initiate refunds.
+
+## Phase 4 Controls
+
+- `APP_ENV` blocks live Stripe keys in non-production environments.
+- Production blocks test Stripe keys unless an explicit temporary override is set.
+- Fixture fallback is disabled outside local/development/test.
+- Client dashboard, project, onboarding, payment, and action queries are organization scoped.
+- Invitation tokens are hashed at rest and consumed once.
+- Admin cleanup workflows are role-gated and audited.

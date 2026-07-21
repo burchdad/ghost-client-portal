@@ -2,10 +2,15 @@ import type { PrismaClient } from "@prisma/client";
 import { getDb } from "@/lib/db";
 import { canAdvanceToViewed, transitionProposalStatus } from "./transitions";
 
-export async function trackProposalView(proposalId: string, db: PrismaClient = getDb()) {
+export async function trackProposalView(
+  proposalId: string,
+  db: PrismaClient = getDb(),
+) {
   try {
     await db.$transaction(async (tx) => {
-      const proposal = await tx.proposal.findUnique({ where: { id: proposalId } });
+      const proposal = await tx.proposal.findUnique({
+        where: { id: proposalId },
+      });
 
       if (!proposal || !proposal.isPublic || proposal.deletedAt) {
         return;
@@ -13,7 +18,8 @@ export async function trackProposalView(proposalId: string, db: PrismaClient = g
 
       const now = new Date();
       const firstView = !proposal.viewedAt;
-      const nextStatus = proposal.status === "SENT" ? "VIEWED" : proposal.status;
+      const nextStatus =
+        proposal.status === "SENT" ? "VIEWED" : proposal.status;
 
       await tx.proposal.update({
         where: { id: proposalId },

@@ -13,3 +13,5 @@ Production checklist:
 7. Run `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 For production payments, configure Stripe webhook delivery to `/api/stripe/webhook`, set `STRIPE_WEBHOOK_SECRET`, run `npx prisma migrate deploy`, and verify a Stripe test-mode Checkout Session before enabling live keys.
+
+Before deploying Phase 4, set `APP_ENV=production` in production and `APP_ENV=staging` in staging. Never point test-mode Stripe webhooks at the production Railway database.

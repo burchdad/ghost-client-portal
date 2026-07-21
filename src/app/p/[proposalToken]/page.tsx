@@ -18,7 +18,12 @@ export default async function PublicProposalPage({
   }
 
   if (availability.status === "expired") {
-    return <ProposalUnavailable title="Proposal expired" correlationId={availability.correlationId} />;
+    return (
+      <ProposalUnavailable
+        title="Proposal expired"
+        correlationId={availability.correlationId}
+      />
+    );
   }
 
   if (availability.proposal.id !== "fixture-gray-proposal") {

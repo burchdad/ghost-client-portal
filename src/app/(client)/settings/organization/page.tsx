@@ -13,7 +13,9 @@ export default async function OrganizationSettingsPage() {
         </div>
         <div>
           <dt className="text-muted">Your role</dt>
-          <dd className="mt-1 font-medium">{membership.role.replaceAll("_", " ").toLowerCase()}</dd>
+          <dd className="mt-1 font-medium">
+            {membership.role.replaceAll("_", " ").toLowerCase()}
+          </dd>
         </div>
       </dl>
     </section>

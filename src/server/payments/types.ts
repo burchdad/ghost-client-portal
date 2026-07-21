@@ -9,7 +9,9 @@ import type {
 } from "@prisma/client";
 
 export type ProposalPaymentContext = Proposal & {
-  organization: Organization & { contacts: { email: string; isPrimary: boolean }[] };
+  organization: Organization & {
+    contacts: { email: string; isPrimary: boolean }[];
+  };
   acceptances: ProposalAcceptance[];
   paymentSchedule: PaymentScheduleItem[];
   payments: Payment[];

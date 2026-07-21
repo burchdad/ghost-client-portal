@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { availabilityFromProposal } from "./repository";
-import { getFixtureProposalByToken, grayMattersDevelopmentToken } from "./fixture";
+import {
+  getFixtureProposalByToken,
+  grayMattersDevelopmentToken,
+} from "./fixture";
 import { canonicalize, hashCanonical } from "./hashing";
 import { createProposalSnapshot, proposalContentForHash } from "./snapshot";
 import {
@@ -11,7 +14,11 @@ import {
   redactProposalToken,
 } from "./tokens";
 import { canTransitionProposal } from "./transitions";
-import { acceptanceSchema, normalizeSignature, signatureReasonablyMatches } from "./validation";
+import {
+  acceptanceSchema,
+  normalizeSignature,
+  signatureReasonablyMatches,
+} from "./validation";
 import { buildAcceptanceSummaryHtml } from "./summary";
 
 describe("proposal tokens", () => {
@@ -26,10 +33,22 @@ describe("proposal tokens", () => {
   });
 
   it("detects expiration, revocation, and redacts raw tokens", () => {
-    expect(isTokenExpired({ tokenExpiresAt: new Date("2026-01-01"), expiresAt: null }, new Date("2026-07-21"))).toBe(true);
-    expect(isTokenExpired({ tokenExpiresAt: new Date("2026-12-31"), expiresAt: null }, new Date("2026-07-21"))).toBe(false);
+    expect(
+      isTokenExpired(
+        { tokenExpiresAt: new Date("2026-01-01"), expiresAt: null },
+        new Date("2026-07-21"),
+      ),
+    ).toBe(true);
+    expect(
+      isTokenExpired(
+        { tokenExpiresAt: new Date("2026-12-31"), expiresAt: null },
+        new Date("2026-07-21"),
+      ),
+    ).toBe(false);
     expect(isTokenRevoked({ tokenRevokedAt: new Date() })).toBe(true);
-    expect(redactProposalToken("abcdefghijklmnopqrstuvwxyz")).toBe("[redacted:uvwxyz]");
+    expect(redactProposalToken("abcdefghijklmnopqrstuvwxyz")).toBe(
+      "[redacted:uvwxyz]",
+    );
   });
 });
 
@@ -39,10 +58,23 @@ describe("proposal availability", () => {
     expect(proposal).not.toBeNull();
 
     expect(availabilityFromProposal(proposal).status).toBe("available");
-    expect(availabilityFromProposal({ ...proposal!, isPublic: false }).status).toBe("unavailable");
-    expect(availabilityFromProposal({ ...proposal!, status: "DRAFT" }).status).toBe("unavailable");
-    expect(availabilityFromProposal({ ...proposal!, tokenRevokedAt: new Date() }).status).toBe("unavailable");
-    expect(availabilityFromProposal({ ...proposal!, expiresAt: new Date("2026-01-01"), tokenExpiresAt: null }).status).toBe("expired");
+    expect(
+      availabilityFromProposal({ ...proposal!, isPublic: false }).status,
+    ).toBe("unavailable");
+    expect(
+      availabilityFromProposal({ ...proposal!, status: "DRAFT" }).status,
+    ).toBe("unavailable");
+    expect(
+      availabilityFromProposal({ ...proposal!, tokenRevokedAt: new Date() })
+        .status,
+    ).toBe("unavailable");
+    expect(
+      availabilityFromProposal({
+        ...proposal!,
+        expiresAt: new Date("2026-01-01"),
+        tokenExpiresAt: null,
+      }).status,
+    ).toBe("expired");
   });
 });
 
@@ -52,7 +84,9 @@ describe("proposal transitions", () => {
     expect(canTransitionProposal("SENT", "VIEWED")).toBe(true);
     expect(canTransitionProposal("VIEWED", "APPROVED")).toBe(true);
     expect(canTransitionProposal("APPROVED", "SIGNATURE_PENDING")).toBe(true);
-    expect(canTransitionProposal("SIGNATURE_PENDING", "PAYMENT_PENDING")).toBe(true);
+    expect(canTransitionProposal("SIGNATURE_PENDING", "PAYMENT_PENDING")).toBe(
+      true,
+    );
     expect(canTransitionProposal("DRAFT", "PAYMENT_PENDING")).toBe(false);
     expect(canTransitionProposal("EXPIRED", "APPROVED")).toBe(false);
     expect(canTransitionProposal("CANCELLED", "VIEWED")).toBe(false);
@@ -62,8 +96,12 @@ describe("proposal transitions", () => {
 describe("signatory validation", () => {
   it("normalizes signatures without being case or punctuation sensitive", () => {
     expect(normalizeSignature("  Jane Q. Client ")).toBe("jane q client");
-    expect(signatureReasonablyMatches("Jane Q. Client", "jane client")).toBe(true);
-    expect(signatureReasonablyMatches("Jane Q. Client", "Someone Else")).toBe(false);
+    expect(signatureReasonablyMatches("Jane Q. Client", "jane client")).toBe(
+      true,
+    );
+    expect(signatureReasonablyMatches("Jane Q. Client", "Someone Else")).toBe(
+      false,
+    );
   });
 
   it("requires all active confirmations", () => {
@@ -99,7 +137,9 @@ describe("snapshots and hashes", () => {
       acceptedAt,
     );
     const hash = hashCanonical(proposalContentForHash(snapshot));
-    const changedHash = hashCanonical(proposalContentForHash({ ...snapshot, terms: "Changed terms" }));
+    const changedHash = hashCanonical(
+      proposalContentForHash({ ...snapshot, terms: "Changed terms" }),
+    );
 
     expect(canonicalize({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
     expect(hash).toHaveLength(64);
@@ -138,6 +178,10 @@ describe("snapshots and hashes", () => {
       proposalContentHash: "a".repeat(64),
       acceptancePayloadHash: "b".repeat(64),
       acceptanceHash: "c".repeat(64),
+      invalidatedAt: null,
+      invalidatedById: null,
+      invalidationReason: null,
+      invalidationType: null,
       ipAddress: null,
       userAgent: null,
       requestId: "request",

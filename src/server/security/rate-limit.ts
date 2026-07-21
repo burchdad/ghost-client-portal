@@ -1,6 +1,9 @@
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-export function checkRateLimit(key: string, options = { limit: 30, windowMs: 60_000 }) {
+export function checkRateLimit(
+  key: string,
+  options = { limit: 30, windowMs: 60_000 },
+) {
   const now = Date.now();
   const existing = buckets.get(key);
 

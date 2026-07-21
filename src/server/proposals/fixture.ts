@@ -1,11 +1,18 @@
 import { hashProposalToken } from "./tokens";
 import type { ProposalWithPublicRelations } from "./types";
 
-export const grayMattersDevelopmentToken = "gray-matters-logo-rebrand-seed-token";
-export const grayMattersAcceptedPaymentToken = "gray-matters-logo-rebrand-accepted-token";
+export const grayMattersDevelopmentToken =
+  "gray-matters-logo-rebrand-seed-token";
+export const grayMattersAcceptedPaymentToken =
+  "gray-matters-logo-rebrand-accepted-token";
 
-export function getFixtureProposalByToken(token: string): ProposalWithPublicRelations | null {
-  if (token !== grayMattersDevelopmentToken && token !== grayMattersAcceptedPaymentToken) {
+export function getFixtureProposalByToken(
+  token: string,
+): ProposalWithPublicRelations | null {
+  if (
+    token !== grayMattersDevelopmentToken &&
+    token !== grayMattersAcceptedPaymentToken
+  ) {
     return null;
   }
 
@@ -16,6 +23,10 @@ export function getFixtureProposalByToken(token: string): ProposalWithPublicRela
     name: "Gray Matters Technology",
     slug: "gray-matters-technology",
     accountStatus: "ACTIVE" as const,
+    primaryContactId: null,
+    billingContactId: null,
+    isTestRecord: false,
+    testRunId: null,
     stripeCustomerId: null,
     stripeCustomerCreatedAt: null,
     stripeCustomerSyncedAt: null,
@@ -36,6 +47,8 @@ export function getFixtureProposalByToken(token: string): ProposalWithPublicRela
     publicTokenHint: token.slice(-8),
     tokenExpiresAt: new Date("2026-12-31T23:59:59.000Z"),
     tokenRevokedAt: null,
+    isTestRecord: false,
+    testRunId: null,
     isPublic: true,
     sentAt: now,
     executiveSummary:
@@ -46,10 +59,12 @@ export function getFixtureProposalByToken(token: string): ProposalWithPublicRela
       "Discovery, concept direction, logo refinement, production exports, color palette, typography recommendations, and mini brand guide.",
     exclusions:
       "Full website redesign, naming, trademark search, paid font licensing, and extended campaign collateral are excluded unless added by change order.",
-    timeline: "Estimated two to three week delivery after onboarding materials are complete.",
+    timeline:
+      "Estimated two to three week delivery after onboarding materials are complete.",
     pricingSummary:
       "Total investment is $1,500 with a $750 deposit and $750 final payment due upon completion and approval.",
-    terms: "Client approval and payment milestones are required before activation and final asset delivery.",
+    terms:
+      "Client approval and payment milestones are required before activation and final asset delivery.",
     totalCents: 150000,
     currency: "usd",
     clientSignatory: null,
@@ -162,6 +177,10 @@ export function getFixtureProposalByToken(token: string): ProposalWithPublicRela
             proposalContentHash: "a".repeat(64),
             acceptancePayloadHash: "b".repeat(64),
             acceptanceHash: "c".repeat(64),
+            invalidatedAt: null,
+            invalidatedById: null,
+            invalidationReason: null,
+            invalidationType: null,
             ipAddress: null,
             userAgent: null,
             requestId: "fixture-request",

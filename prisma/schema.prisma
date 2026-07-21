@@ -142,26 +142,60 @@ enum ChangeOrderStatus {
   CANCELLED
 }
 
+enum ClientActionStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  NEEDS_CHANGES
+  COMPLETED
+  WAIVED
+  EXPIRED
+}
+
+enum ClientActionPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ClientActionCategory {
+  ONBOARDING
+  FILE_UPLOAD
+  APPROVAL
+  PAYMENT
+  DECISION
+  REVIEW
+  GENERAL
+}
+
 model User {
-  id                 String                   @id @default(cuid())
-  email              String                   @unique
-  name               String
-  title              String?
-  passwordHash       String
-  accountStatus      AccountStatus            @default(ACTIVE)
-  internalRole       InternalRole?
-  lastLoginAt        DateTime?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  deletedAt          DateTime?
-  sessions           Session[]
-  memberships        OrganizationMembership[]
-  ownedProposals     Proposal[]               @relation("ProposalOwner")
-  assignedProjects   Project[]                @relation("ProjectOwner")
-  notifications      Notification[]
-  authoredMessages   Message[]
-  auditLogs          AuditLog[]
-  supportAssignments SupportRequest[]         @relation("SupportAssignee")
+  id                     String                    @id @default(cuid())
+  email                  String                    @unique
+  name                   String
+  title                  String?
+  passwordHash           String
+  accountStatus          AccountStatus             @default(ACTIVE)
+  internalRole           InternalRole?
+  lastLoginAt            DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  deletedAt              DateTime?
+  sessions               Session[]
+  memberships            OrganizationMembership[]
+  ownedProposals         Proposal[]                @relation("ProposalOwner")
+  assignedProjects       Project[]                 @relation("ProjectOwner")
+  notifications          Notification[]
+  authoredMessages       Message[]
+  auditLogs              AuditLog[]
+  supportAssignments     SupportRequest[]          @relation("SupportAssignee")
+  assignedActions        ClientAction[]            @relation("ClientActionAssignee")
+  createdInvitations     Invitation[]              @relation("InvitationCreator")
+  acceptedInvitations    Invitation[]              @relation("InvitationAcceptedUser")
+  progressOverrides      ProjectProgressOverride[]
+  migrationConfirmations MigrationConfirmation[]
+  launchReviews          LaunchReview[]
+  createdTestRuns        TestRun[]                 @relation("TestRunCreator")
 }
 
 model Session {
@@ -181,18 +215,24 @@ model Session {
 }
 
 model Organization {
-  id                      String                   @id @default(cuid())
+  id                      String                    @id @default(cuid())
   name                    String
-  slug                    String                   @unique
-  accountStatus           AccountStatus            @default(INVITED)
-  stripeCustomerId        String?                  @unique
+  slug                    String                    @unique
+  accountStatus           AccountStatus             @default(INVITED)
+  primaryContactId        String?
+  billingContactId        String?
+  isTestRecord            Boolean                   @default(false)
+  testRunId               String?
+  stripeCustomerId        String?                   @unique
   stripeCustomerCreatedAt DateTime?
   stripeCustomerSyncedAt  DateTime?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
   deletedAt               DateTime?
   memberships             OrganizationMembership[]
   contacts                Contact[]
+  primaryContact          Contact?                  @relation("PrimaryOrganizationContact", fields: [primaryContactId], references: [id])
+  billingContact          Contact?                  @relation("BillingOrganizationContact", fields: [billingContactId], references: [id])
   proposals               Proposal[]
   projects                Project[]
   files                   FileAsset[]
@@ -206,6 +246,12 @@ model Organization {
   activity                ActivityEvent[]
   changeOrders            ChangeOrder[]
   acceptances             ProposalAcceptance[]
+  clientActions           ClientAction[]
+  invitations             Invitation[]
+  progressOverrides       ProjectProgressOverride[]
+  migrationConfirmations  MigrationConfirmation[]
+  launchReviews           LaunchReview[]
+  testRun                 TestRun?                  @relation(fields: [testRunId], references: [id])
 }
 
 model OrganizationMembership {
@@ -224,19 +270,26 @@ model OrganizationMembership {
 }
 
 model Contact {
-  id             String       @id @default(cuid())
-  organizationId String
-  userId         String?
-  name           String
-  email          String
-  title          String?
-  phone          String?
-  isPrimary      Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deletedAt      DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  proposals      Proposal[]
+  id                           String         @id @default(cuid())
+  organizationId               String
+  userId                       String?
+  name                         String
+  email                        String
+  title                        String?
+  phone                        String?
+  preferredCommunicationMethod String?
+  isPrimaryApprover            Boolean        @default(false)
+  isTestRecord                 Boolean        @default(false)
+  testRunId                    String?
+  isPrimary                    Boolean        @default(false)
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
+  deletedAt                    DateTime?
+  organization                 Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposals                    Proposal[]
+  primaryFor                   Organization[] @relation("PrimaryOrganizationContact")
+  billingFor                   Organization[] @relation("BillingOrganizationContact")
+  testRun                      TestRun?       @relation(fields: [testRunId], references: [id])
 
   @@index([organizationId])
 }
@@ -271,6 +324,8 @@ model Proposal {
   proposalNumber   String                @unique
   publicTokenHash  String                @unique
   publicTokenHint  String?
+  isTestRecord     Boolean               @default(false)
+  testRunId        String?
   tokenExpiresAt   DateTime?
   tokenRevokedAt   DateTime?
   isPublic         Boolean               @default(false)
@@ -309,6 +364,8 @@ model Proposal {
   paymentSchedule  PaymentScheduleItem[]
   payments         Payment[]
   projects         Project[]
+  launchReviews    LaunchReview[]
+  testRun          TestRun?              @relation(fields: [testRunId], references: [id])
 
   @@index([organizationId, status])
   @@index([expiresAt])
@@ -367,6 +424,10 @@ model ProposalAcceptance {
   proposalContentHash     String
   acceptancePayloadHash   String
   acceptanceHash          String
+  invalidatedAt           DateTime?
+  invalidatedById         String?
+  invalidationReason      String?
+  invalidationType        String?
   ipAddress               String?
   userAgent               String?
   requestId               String
@@ -383,32 +444,35 @@ model ProposalAcceptance {
 }
 
 model Project {
-  id                    String                @id @default(cuid())
+  id                    String                    @id @default(cuid())
   organizationId        String
   proposalId            String?
   projectOwnerId        String?
+  isTestRecord          Boolean                   @default(false)
+  testRunId             String?
   name                  String
   serviceCategory       String
   startDate             DateTime?
   targetCompletionDate  DateTime?
   currentPhase          String
-  status                ProjectStatus         @default(ONBOARDING)
-  progress              Int                   @default(0)
-  contractValueCents    Int                   @default(0)
-  amountPaidCents       Int                   @default(0)
-  remainingBalanceCents Int                   @default(0)
+  status                ProjectStatus             @default(ONBOARDING)
+  progress              Int                       @default(0)
+  contractValueCents    Int                       @default(0)
+  amountPaidCents       Int                       @default(0)
+  remainingBalanceCents Int                       @default(0)
   clientVisibleSummary  String
   internalReferenceId   String?
-  portalVisible         Boolean               @default(true)
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  portalVisible         Boolean                   @default(true)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
   deletedAt             DateTime?
-  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  proposal              Proposal?             @relation(fields: [proposalId], references: [id])
-  projectOwner          User?                 @relation("ProjectOwner", fields: [projectOwnerId], references: [id])
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposal              Proposal?                 @relation(fields: [proposalId], references: [id])
+  projectOwner          User?                     @relation("ProjectOwner", fields: [projectOwnerId], references: [id])
   members               ProjectMember[]
   phases                ProjectPhase[]
   milestones            Milestone[]
+  clientActions         ClientAction[]
   deliverables          Deliverable[]
   approvals             Approval[]
   files                 FileAsset[]
@@ -417,6 +481,8 @@ model Project {
   supportRequests       SupportRequest[]
   messageThreads        MessageThread[]
   changeOrders          ChangeOrder[]
+  progressOverrides     ProjectProgressOverride[]
+  testRun               TestRun?                  @relation(fields: [testRunId], references: [id])
 
   @@unique([proposalId])
   @@index([organizationId, status])
@@ -434,14 +500,23 @@ model ProjectMember {
 }
 
 model ProjectPhase {
-  id          String      @id @default(cuid())
-  projectId   String
-  name        String
-  description String?
-  sortOrder   Int
-  status      String
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestones  Milestone[]
+  id                       String      @id @default(cuid())
+  projectId                String
+  name                     String
+  description              String?
+  clientVisibleDescription String?
+  clientVisibleNotes       String?
+  sortOrder                Int
+  status                   String
+  startDate                DateTime?
+  targetDate               DateTime?
+  completedDate            DateTime?
+  progress                 Int         @default(0)
+  project                  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestones               Milestone[]
+
+  @@unique([projectId, name])
+  @@index([projectId, sortOrder])
 }
 
 model Milestone {
@@ -451,12 +526,15 @@ model Milestone {
   name               String
   description        String?
   plannedDate        DateTime?
+  dueAt              DateTime?
   completedDate      DateTime?
   status             String
   dependencies       String?
   clientVisibleNotes String?
   project            Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   phase              ProjectPhase? @relation(fields: [phaseId], references: [id])
+
+  @@index([projectId, status])
 }
 
 model Deliverable {
@@ -511,23 +589,27 @@ model ApprovalComment {
 }
 
 model FileAsset {
-  id             String           @id @default(cuid())
-  organizationId String
-  projectId      String?
-  uploadedById   String?
-  name           String
-  category       String
-  storageKey     String
-  mimeType       String
-  sizeBytes      Int
-  visibility     FileVisibility   @default(CLIENT_VISIBLE)
-  createdAt      DateTime         @default(now())
-  deletedAt      DateTime?
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project        Project?         @relation(fields: [projectId], references: [id])
-  permissions    FilePermission[]
+  id               String           @id @default(cuid())
+  organizationId   String
+  projectId        String?
+  uploadedById     String?
+  onboardingFormId String?
+  name             String
+  category         String
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  visibility       FileVisibility   @default(CLIENT_VISIBLE)
+  createdAt        DateTime         @default(now())
+  deletedAt        DateTime?
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project?         @relation(fields: [projectId], references: [id])
+  onboardingForm   OnboardingForm?  @relation(fields: [onboardingFormId], references: [id])
+  permissions      FilePermission[]
 
   @@index([organizationId, visibility])
+  @@index([projectId])
+  @@index([onboardingFormId])
 }
 
 model FilePermission {
@@ -571,38 +653,46 @@ model PaymentScheduleItem {
 }
 
 model Payment {
-  id                    String               @id @default(cuid())
-  organizationId        String
-  proposalId            String?
-  projectId             String?
-  paymentScheduleItemId String?
-  stripePaymentIntentId String?              @unique
-  stripeCheckoutId      String?              @unique
-  stripeCustomerId      String?
-  stripeChargeId        String?
-  stripeReceiptUrl      String?
-  paymentType           PaymentType
-  status                PaymentStatus        @default(PENDING)
-  amountCents           Int
-  currency              String               @default("usd")
-  idempotencyKey        String?              @unique
-  requestId             String?
-  failureCode           String?
-  failureMessage        String?
-  refundedAmountCents   Int                  @default(0)
-  recoveryRequired      Boolean              @default(false)
-  recoveryReason        String?
-  metadata              Json?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  paidAt                DateTime?
-  failedAt              DateTime?
-  organization          Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  proposal              Proposal?            @relation(fields: [proposalId], references: [id])
-  project               Project?             @relation(fields: [projectId], references: [id])
-  paymentScheduleItem   PaymentScheduleItem? @relation(fields: [paymentScheduleItemId], references: [id])
+  id                        String               @id @default(cuid())
+  organizationId            String
+  proposalId                String?
+  projectId                 String?
+  paymentScheduleItemId     String?
+  isTestRecord              Boolean              @default(false)
+  testRunId                 String?
+  stripePaymentIntentId     String?              @unique
+  stripeCheckoutId          String?              @unique
+  stripeCustomerId          String?
+  stripeChargeId            String?
+  stripeReceiptUrl          String?
+  paymentType               PaymentType
+  status                    PaymentStatus        @default(PENDING)
+  amountCents               Int
+  currency                  String               @default("usd")
+  idempotencyKey            String?              @unique
+  requestId                 String?
+  failureCode               String?
+  failureMessage            String?
+  refundedAmountCents       Int                  @default(0)
+  recoveryRequired          Boolean              @default(false)
+  recoveryReason            String?
+  checkoutDisposition       String?
+  checkoutDispositionAt     DateTime?
+  checkoutDispositionById   String?
+  checkoutDispositionReason String?
+  metadata                  Json?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  paidAt                    DateTime?
+  failedAt                  DateTime?
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposal                  Proposal?            @relation(fields: [proposalId], references: [id])
+  project                   Project?             @relation(fields: [projectId], references: [id])
+  paymentScheduleItem       PaymentScheduleItem? @relation(fields: [paymentScheduleItemId], references: [id])
+  testRun                   TestRun?             @relation(fields: [testRunId], references: [id])
 
   @@index([organizationId, status])
+  @@index([testRunId])
 }
 
 model Subscription {
@@ -674,6 +764,8 @@ model OnboardingForm {
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   template             OnboardingTemplate   @relation(fields: [templateId], references: [id])
   responses            OnboardingResponse[]
+  clientActions        ClientAction[]
+  files                FileAsset[]
 
   @@unique([projectId, templateId])
 }
@@ -768,6 +860,116 @@ model ActivityEvent {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model ClientAction {
+  id                        String               @id @default(cuid())
+  organizationId            String
+  projectId                 String
+  assignedUserId            String?
+  relatedOnboardingFormId   String?
+  title                     String
+  description               String
+  category                  ClientActionCategory
+  priority                  ClientActionPriority @default(NORMAL)
+  status                    ClientActionStatus   @default(PENDING)
+  dueAt                     DateTime?
+  completedAt               DateTime?
+  clientVisibleInstructions String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                   Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedUser              User?                @relation("ClientActionAssignee", fields: [assignedUserId], references: [id])
+  relatedOnboardingForm     OnboardingForm?      @relation(fields: [relatedOnboardingFormId], references: [id])
+
+  @@index([organizationId, status, dueAt])
+  @@index([projectId, status])
+  @@index([assignedUserId, status])
+}
+
+model Invitation {
+  id              String           @id @default(cuid())
+  organizationId  String
+  contactId       String?
+  isTestRecord    Boolean          @default(false)
+  testRunId       String?
+  email           String
+  name            String
+  intendedRole    OrganizationRole
+  tokenHash       String           @unique
+  tokenHint       String?
+  expiresAt       DateTime
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  reviewedAt      DateTime?
+  status          String           @default("CREATED")
+  termsAcceptedAt DateTime?
+  createdById     String?
+  acceptedById    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation("InvitationCreator", fields: [createdById], references: [id])
+  acceptedBy      User?            @relation("InvitationAcceptedUser", fields: [acceptedById], references: [id])
+  testRun         TestRun?         @relation(fields: [testRunId], references: [id])
+
+  @@unique([organizationId, email, intendedRole, acceptedAt])
+  @@index([organizationId, email])
+  @@index([testRunId])
+  @@index([expiresAt])
+}
+
+model TestRun {
+  id                       String         @id
+  status                   String         @default("NOT_STARTED")
+  clientEmail              String
+  clientName               String
+  clientTitle              String
+  organizationName         String
+  proposalId               String?
+  projectId                String?
+  proposalTokenHash        String?
+  proposalTokenHint        String?
+  invitationId             String?
+  invitationTokenHash      String?
+  invitationTokenHint      String?
+  proposalEmailSentAt      DateTime?
+  proposalEmailMessageId   String?
+  invitationEmailSentAt    DateTime?
+  invitationEmailMessageId String?
+  startedAt                DateTime       @default(now())
+  completedAt              DateTime?
+  cleanupAt                DateTime?
+  createdById              String?
+  createdBy                User?          @relation("TestRunCreator", fields: [createdById], references: [id])
+  organizations            Organization[]
+  contacts                 Contact[]
+  proposals                Proposal[]
+  projects                 Project[]
+  payments                 Payment[]
+  invitations              Invitation[]
+
+  @@index([clientEmail, status])
+}
+
+model ProjectProgressOverride {
+  id               String       @id @default(cuid())
+  organizationId   String
+  projectId        String
+  previousProgress Int
+  newProgress      Int
+  reason           String
+  actorUserId      String?
+  createdAt        DateTime     @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor            User?        @relation(fields: [actorUserId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
 }
 
 model AuditLog {
@@ -781,6 +983,44 @@ model AuditLog {
   metadata    Json?
   createdAt   DateTime @default(now())
   actor       User?    @relation(fields: [actorUserId], references: [id])
+}
+
+model MigrationConfirmation {
+  id                     String        @id @default(cuid())
+  migrationName          String
+  backupReference        String
+  backupTimestamp        DateTime
+  operatorUserId         String?
+  operatorLabel          String
+  confirmationPhraseHash String
+  environment            String
+  result                 String        @default("CONFIRMED")
+  notes                  String?
+  createdAt              DateTime      @default(now())
+  operator               User?         @relation(fields: [operatorUserId], references: [id])
+  organization           Organization? @relation(fields: [organizationId], references: [id])
+  organizationId         String?
+
+  @@index([migrationName, environment])
+}
+
+model LaunchReview {
+  id             String       @id @default(cuid())
+  organizationId String
+  proposalId     String?
+  finalStatus    String
+  checklist      Json
+  report         Json
+  operatorUserId String?
+  operatorLabel  String
+  reason         String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposal       Proposal?    @relation(fields: [proposalId], references: [id])
+  operator       User?        @relation(fields: [operatorUserId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([proposalId])
 }
 
 model ChangeOrder {
