@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --background: #080b10;
+  --foreground: #eef3f8;
+  --muted: #95a3b8;
+  --panel: #101721;
+  --panel-strong: #151f2c;
+  --line: #243244;
+  --accent: #77d8c2;
+  --accent-strong: #a9efe0;
+  --danger: #ff8a8a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.surface {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(119, 216, 194, 0.13), transparent 28rem),
+    linear-gradient(135deg, #080b10 0%, #101721 46%, #0d1118 100%);
+}
