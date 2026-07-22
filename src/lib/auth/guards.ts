@@ -30,7 +30,7 @@ export async function requireInternalRole(roles?: InternalRole[]) {
   const user = await requireAuthenticatedUser();
 
   if (!hasInternalRole(user.internalRole, roles)) {
-    throw new AuthorizationError("Internal portal access is required.");
+    redirect(user.internalRole ? "/admin" : "/dashboard");
   }
 
   return user;
