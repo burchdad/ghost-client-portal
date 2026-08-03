@@ -3,48 +3,41 @@ import { requireInternalRole } from "@/lib/auth/guards";
 import { humanizeEnum } from "@/lib/format";
 import { getAdminVegaData } from "@/server/vega/service";
 
-export default async function AdminVegaPage() {
+export default async function AdminGeoPage() {
   await requireInternalRole();
   const organizations = await getAdminVegaData();
-  const totalLeadSignals = organizations.reduce(
-    (total, organization) => total + organization.snapshot.summary.leadSignals,
-    0,
-  );
-  const totalEngagement = organizations.reduce(
+  const totalCompetitors = organizations.reduce(
     (total, organization) =>
-      total + organization.snapshot.summary.openEngagements,
+      total + organization.snapshot.summary.capturedCompetitors,
     0,
   );
+  const averageVisibility = organizations.length
+    ? Math.round(
+        organizations.reduce(
+          (total, organization) =>
+            total + organization.snapshot.positioningScore,
+          0,
+        ) / organizations.length,
+      )
+    : 0;
 
   return (
     <section className="space-y-6">
       <div>
-        <p className="text-sm uppercase tracking-[0.24em] text-accent">Vega</p>
-        <h1 className="mt-2 text-3xl font-semibold">Leads and engagement</h1>
+        <p className="text-sm uppercase tracking-[0.24em] text-accent">GEO</p>
+        <h1 className="mt-2 text-3xl font-semibold">
+          Search and generative visibility
+        </h1>
         <p className="mt-3 max-w-3xl text-sm text-muted">
-          Operational overview of client-facing lead signals, opportunity
-          stages, intent, and engagement readiness.
+          Admin view for client SEO, AEO, GEO positioning, competitor context,
+          and visibility signals.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Metric label="Tracked clients" value={organizations.length} />
-        <Metric label="Lead signals" value={totalLeadSignals} />
-        <Metric label="Engagement" value={totalEngagement} />
-        <Metric
-          label="Average Vega score"
-          value={
-            organizations.length
-              ? Math.round(
-                  organizations.reduce(
-                    (total, organization) =>
-                      total + organization.snapshot.positioningScore,
-                    0,
-                  ) / organizations.length,
-                )
-              : 0
-          }
-        />
+        <Metric label="Competitors" value={totalCompetitors} />
+        <Metric label="Average visibility" value={averageVisibility} />
       </div>
 
       <div className="rounded-lg border border-line bg-panel">
@@ -71,28 +64,19 @@ export default async function AdminVegaPage() {
                 </Link>
               </div>
               <div className="mt-5 grid gap-3 text-sm md:grid-cols-4">
-                <Mini
-                  label="Vega score"
-                  value={String(organization.snapshot.positioningScore)}
-                />
-                <Mini
-                  label="Lead signals"
-                  value={String(organization.snapshot.summary.leadSignals)}
-                />
-                <Mini
-                  label="Engagement"
-                  value={String(organization.snapshot.summary.openEngagements)}
-                />
-                <Mini
-                  label="Projects"
-                  value={String(organization.snapshot.summary.activeProjects)}
-                />
+                {organization.snapshot.positioning.map((item) => (
+                  <Mini
+                    key={item.label}
+                    label={item.label}
+                    value={`${item.score} - ${item.status}`}
+                  />
+                ))}
               </div>
             </div>
           ))
         ) : (
           <p className="p-5 text-sm text-muted">
-            Vega client intelligence appears after organizations are added.
+            GEO visibility appears after organizations are added.
           </p>
         )}
       </div>

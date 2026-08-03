@@ -2,9 +2,11 @@ import Link from "next/link";
 import {
   Bell,
   Building2,
+  Compass,
   FolderKanban,
   Home,
   FlaskConical,
+  Megaphone,
   Sparkles,
   Settings,
   Shield,
@@ -16,6 +18,8 @@ import type { AuthenticatedUser } from "@/lib/auth/session";
 const clientNav = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/vega", label: "Vega", icon: Sparkles },
+  { href: "/geo", label: "GEO", icon: Compass },
+  { href: "/echo", label: "Echo", icon: Megaphone },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/proposals", label: "Proposals", icon: Shield },
   { href: "/payments", label: "Payments", icon: WalletCards },
@@ -25,6 +29,8 @@ const clientNav = [
 const adminNav = [
   { href: "/admin", label: "Overview", icon: Home },
   { href: "/admin/vega", label: "Vega", icon: Sparkles },
+  { href: "/admin/geo", label: "GEO", icon: Compass },
+  { href: "/admin/echo", label: "Echo", icon: Megaphone },
   { href: "/admin/organizations", label: "Organizations", icon: Building2 },
   { href: "/admin/proposals", label: "Proposals", icon: Shield },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },

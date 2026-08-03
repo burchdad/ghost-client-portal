@@ -62,6 +62,12 @@ export type VegaSnapshot = {
     body: string;
     signal: string;
   }[];
+  marketingTactics: {
+    name: string;
+    channel: string;
+    status: string;
+    nextMove: string;
+  }[];
 };
 
 export async function getClientVegaData(organizationId: string) {
@@ -174,6 +180,7 @@ export function buildVegaSnapshot(input: {
     competitors,
     leads: leadSignals,
     engagement: buildEngagement(input.activity, openActions),
+    marketingTactics: buildMarketingTactics(projectSignals, openActions),
   };
 }
 
@@ -324,6 +331,70 @@ function buildEngagement(
   }));
 
   return [...actionSignals, ...activitySignals].slice(0, 6);
+}
+
+function buildMarketingTactics(
+  projectSignals: { project: VegaProjectInput; progress: number }[],
+  openActions: {
+    project: VegaProjectInput;
+    action: VegaProjectInput["clientActions"][number];
+  }[],
+) {
+  const projectText = projectSignals
+    .map(({ project }) =>
+      [
+        project.name,
+        project.serviceCategory,
+        project.currentPhase,
+        project.clientVisibleSummary,
+      ].join(" "),
+    )
+    .join(" ")
+    .toLowerCase();
+  const hasSearch = ["seo", "search", "geo", "aeo"].some((term) =>
+    projectText.includes(term),
+  );
+  const hasBrand = ["brand", "logo", "identity", "creative"].some((term) =>
+    projectText.includes(term),
+  );
+  const hasLeadGen = ["lead", "funnel", "campaign", "engagement"].some((term) =>
+    projectText.includes(term),
+  );
+  const nextAction =
+    openActions[0]?.action.description ??
+    "Ghost will publish the next campaign move after the current workspace milestone.";
+
+  return [
+    {
+      name: "Search capture campaign",
+      channel: "SEO / AEO / GEO",
+      status: hasSearch ? "Active" : "Ready for planning",
+      nextMove: hasSearch
+        ? "Expand ranking, answer, and generative discovery coverage."
+        : "Define the first search visibility campaign.",
+    },
+    {
+      name: "Authority and trust content",
+      channel: "Content",
+      status: hasBrand ? "In motion" : "Queued",
+      nextMove: hasBrand
+        ? "Turn brand positioning into proof-led market content."
+        : "Collect brand and audience inputs before publishing.",
+    },
+    {
+      name: "Lead engagement sequence",
+      channel: "Email / CRM",
+      status: hasLeadGen ? "Active" : "Needs lead source",
+      nextMove: nextAction,
+    },
+    {
+      name: "Competitor response plays",
+      channel: "Positioning",
+      status: "Draft",
+      nextMove:
+        "Use competitor gaps from GEO to create differentiating campaign angles.",
+    },
+  ];
 }
 
 function normalizeList(value: unknown): string[] {
