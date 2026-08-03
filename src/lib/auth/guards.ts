@@ -56,6 +56,61 @@ export async function requireOrganizationMembership(organizationId?: string) {
   return { user, membership, organization: membership.organization };
 }
 
+export async function requireClientWorkspace(organizationId?: string) {
+  const user = await requireAuthenticatedUser();
+  const db = getDb();
+
+  if (!organizationId && user.internalRole) {
+    const organization = await db.organization.upsert({
+      where: { slug: "ghost-ai-solutions" },
+      update: { accountStatus: "ACTIVE" },
+      create: {
+        name: "Ghost AI Solutions",
+        slug: "ghost-ai-solutions",
+        accountStatus: "ACTIVE",
+      },
+    });
+    const ghostMembership = await db.organizationMembership.upsert({
+      where: {
+        userId_organizationId: {
+          userId: user.id,
+          organizationId: organization.id,
+        },
+      },
+      update: { deletedAt: null, role: "OWNER" },
+      create: {
+        userId: user.id,
+        organizationId: organization.id,
+        role: "OWNER",
+      },
+      include: { organization: true },
+    });
+
+    return {
+      user,
+      membership: ghostMembership,
+      organization: ghostMembership.organization,
+    };
+  }
+
+  const membership = await db.organizationMembership.findFirst({
+    where: {
+      userId: user.id,
+      deletedAt: null,
+      organizationId,
+      organization: { deletedAt: null },
+    },
+    include: { organization: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (membership) {
+    return { user, membership, organization: membership.organization };
+  }
+
+  throw new AuthorizationError("Organization membership is required.");
+}
+
 export async function requireOrganizationRole(
   organizationId: string,
   roles: OrganizationRole[],

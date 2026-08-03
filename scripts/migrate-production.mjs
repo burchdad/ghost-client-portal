@@ -13,6 +13,7 @@ const requiredConfirmations = {
     "APPLY PHASE 4.6 PRODUCTION MIGRATION",
   "20260721050000_test_client_lifecycle":
     "APPLY TEST CLIENT LIFECYCLE PRODUCTION MIGRATION",
+  "20260803010000_vega_leadgen": "APPLY VEGA LEADGEN PRODUCTION MIGRATION",
 };
 const requiredConfirmation = requiredConfirmations[targetMigration];
 

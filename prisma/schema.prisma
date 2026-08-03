@@ -188,6 +188,7 @@ model User {
   notifications          Notification[]
   authoredMessages       Message[]
   auditLogs              AuditLog[]
+  vegaLeadQueries        VegaLeadQuery[]
   supportAssignments     SupportRequest[]          @relation("SupportAssignee")
   assignedActions        ClientAction[]            @relation("ClientActionAssignee")
   createdInvitations     Invitation[]              @relation("InvitationCreator")
@@ -251,6 +252,8 @@ model Organization {
   progressOverrides       ProjectProgressOverride[]
   migrationConfirmations  MigrationConfirmation[]
   launchReviews           LaunchReview[]
+  vegaLeadQueries         VegaLeadQuery[]
+  vegaLeads               VegaLead[]
   testRun                 TestRun?                  @relation(fields: [testRunId], references: [id])
 }
 
@@ -887,6 +890,50 @@ model ClientAction {
   @@index([organizationId, status, dueAt])
   @@index([projectId, status])
   @@index([assignedUserId, status])
+}
+
+model VegaLeadQuery {
+  id             String       @id @default(cuid())
+  organizationId String
+  requestedById  String?
+  prompt         String
+  status         String       @default("COMPLETED")
+  source         String       @default("client_portal")
+  resultCount    Int          @default(0)
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy    User?        @relation(fields: [requestedById], references: [id])
+  leads          VegaLead[]
+
+  @@index([organizationId, createdAt])
+  @@index([requestedById, createdAt])
+}
+
+model VegaLead {
+  id             String         @id @default(cuid())
+  organizationId String
+  queryId        String?
+  company        String
+  contactName    String?
+  title          String?
+  email          String?
+  phone          String?
+  website        String?
+  segment        String
+  status         String         @default("NEW")
+  intentScore    Int            @default(0)
+  source         String         @default("vega")
+  notes          String?
+  nextStep       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  query          VegaLeadQuery? @relation(fields: [queryId], references: [id])
+
+  @@index([organizationId, status, createdAt])
+  @@index([queryId])
 }
 
 model Invitation {

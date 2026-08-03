@@ -31,6 +31,17 @@ type VegaProjectInput = {
   }[];
 };
 
+type VegaLeadRecord = {
+  company: string;
+  contact: string;
+  title: string;
+  segment: string;
+  stage: string;
+  intentScore: number;
+  emailStatus: string;
+  nextStep: string;
+};
+
 export type VegaSnapshot = {
   positioningScore: number;
   summary: {
@@ -57,16 +68,7 @@ export type VegaSnapshot = {
     intentScore: number;
     nextStep: string;
   }[];
-  leadRecords: {
-    company: string;
-    contact: string;
-    title: string;
-    segment: string;
-    stage: string;
-    intentScore: number;
-    emailStatus: string;
-    nextStep: string;
-  }[];
+  leadRecords: VegaLeadRecord[];
   leadLists: {
     name: string;
     count: number;
@@ -84,6 +86,13 @@ export type VegaSnapshot = {
     label: string;
     query: string;
   }[];
+  queries: {
+    id: string;
+    prompt: string;
+    status: string;
+    resultCount: number;
+    createdAt: Date;
+  }[];
   engagement: {
     title: string;
     body: string;
@@ -99,31 +108,42 @@ export type VegaSnapshot = {
 
 export async function getClientVegaData(organizationId: string) {
   const db = getDb();
-  const [organization, projects, forms, activity] = await Promise.all([
-    db.organization.findUnique({
-      where: { id: organizationId },
-      include: { contacts: true, primaryContact: true },
-    }),
-    db.project.findMany({
-      where: { organizationId, deletedAt: null, portalVisible: true },
-      include: {
-        phases: true,
-        milestones: true,
-        clientActions: true,
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    db.onboardingForm.findMany({
-      where: { organizationId },
-      include: { responses: true },
-      orderBy: { updatedAt: "desc" },
-    }),
-    db.activityEvent.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }),
-  ]);
+  const [organization, projects, forms, activity, storedLeads, queries] =
+    await Promise.all([
+      db.organization.findUnique({
+        where: { id: organizationId },
+        include: { contacts: true, primaryContact: true },
+      }),
+      db.project.findMany({
+        where: { organizationId, deletedAt: null, portalVisible: true },
+        include: {
+          phases: true,
+          milestones: true,
+          clientActions: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
+      db.onboardingForm.findMany({
+        where: { organizationId },
+        include: { responses: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+      db.activityEvent.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      db.vegaLead.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+      db.vegaLeadQuery.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+    ]);
 
   const responses = forms.flatMap((form) => form.responses);
 
@@ -132,6 +152,24 @@ export async function getClientVegaData(organizationId: string) {
     snapshot: buildVegaSnapshot({
       projects,
       responses,
+      storedLeads: storedLeads.map((lead) => ({
+        company: lead.company,
+        contact: lead.contactName ?? "Contact pending",
+        title: lead.title ?? "Decision maker",
+        segment: lead.segment,
+        stage: lead.status,
+        intentScore: lead.intentScore,
+        emailStatus: lead.email ? "Ready for outreach" : "Needs enrichment",
+        nextStep: lead.nextStep ?? "Review lead before outreach.",
+      })),
+      queries: queries.map((query) => ({
+        id: query.id,
+        prompt: query.prompt,
+        status: query.status,
+        resultCount: query.resultCount,
+        createdAt: query.createdAt,
+      })),
+      useGeneratedLeadFallback: false,
       activity: activity
         .filter((item) => isClientSafeActivity(item.type))
         .map((item) => ({
@@ -169,10 +207,67 @@ export async function getAdminVegaData() {
   }));
 }
 
+export async function createVegaLeadQuery(input: {
+  organizationId: string;
+  requestedById: string;
+  prompt: string;
+}) {
+  const db = getDb();
+  const leads = generateLeadsForPrompt(input.prompt);
+
+  return db.$transaction(async (tx) => {
+    const query = await tx.vegaLeadQuery.create({
+      data: {
+        organizationId: input.organizationId,
+        requestedById: input.requestedById,
+        prompt: input.prompt,
+        status: "COMPLETED",
+        resultCount: leads.length,
+        completedAt: new Date(),
+      },
+    });
+
+    await tx.vegaLead.createMany({
+      data: leads.map((lead) => ({
+        organizationId: input.organizationId,
+        queryId: query.id,
+        ...lead,
+      })),
+    });
+
+    await tx.activityEvent.create({
+      data: {
+        organizationId: input.organizationId,
+        type: "vega.leads_pulled",
+        title: "Vega lead request completed",
+        body: input.prompt,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorUserId: input.requestedById,
+        eventType: "vega.lead_query.created",
+        entityType: "VegaLeadQuery",
+        entityId: query.id,
+        metadata: {
+          organizationId: input.organizationId,
+          resultCount: leads.length,
+        },
+      },
+    });
+
+    return query;
+  });
+}
+
 export function buildVegaSnapshot(input: {
   projects: VegaProjectInput[];
   responses: OnboardingResponseInput[];
   activity: { title: string; body: string; type: string }[];
+  storedLeads?: VegaLeadRecord[];
+  queries?: VegaSnapshot["queries"];
+  useGeneratedLeadFallback?: boolean;
 }): VegaSnapshot {
   const competitors = extractCompetitors(input.responses);
   const openActions = input.projects.flatMap((project) =>
@@ -189,6 +284,12 @@ export function buildVegaSnapshot(input: {
     }),
   }));
   const leadSignals = buildLeadSignals(projectSignals, openActions);
+  const generatedLeadRecords = buildLeadRecords(leadSignals);
+  const leadRecords = input.storedLeads?.length
+    ? input.storedLeads
+    : input.useGeneratedLeadFallback === false
+      ? []
+      : generatedLeadRecords;
   const baseScore =
     30 +
     Math.min(25, input.projects.length * 8) +
@@ -206,10 +307,11 @@ export function buildVegaSnapshot(input: {
     positioning: buildPositioning(projectSignals, competitors.length),
     competitors,
     leads: leadSignals,
-    leadRecords: buildLeadRecords(leadSignals),
-    leadLists: buildLeadLists(leadSignals, competitors.length),
-    outreachSequences: buildOutreachSequences(leadSignals, openActions),
+    leadRecords,
+    leadLists: buildLeadLists(leadRecords, competitors.length),
+    outreachSequences: buildOutreachSequences(leadRecords, openActions),
     queryPresets: buildQueryPresets(projectSignals, competitors),
+    queries: input.queries ?? [],
     engagement: buildEngagement(input.activity, openActions),
     marketingTactics: buildMarketingTactics(projectSignals, openActions),
   };
@@ -382,14 +484,11 @@ function buildLeadRecords(
 }
 
 function buildLeadLists(
-  leadSignals: {
-    source: string;
-    intentScore: number;
-  }[],
+  leadRecords: VegaLeadRecord[],
   competitorCount: number,
 ) {
-  const qualified = leadSignals.filter((lead) => lead.intentScore >= 65).length;
-  const highIntent = leadSignals.filter(
+  const qualified = leadRecords.filter((lead) => lead.intentScore >= 65).length;
+  const highIntent = leadRecords.filter(
     (lead) => lead.intentScore >= 80,
   ).length;
 
@@ -416,16 +515,13 @@ function buildLeadLists(
 }
 
 function buildOutreachSequences(
-  leadSignals: {
-    source: string;
-    intentScore: number;
-  }[],
+  leadRecords: VegaLeadRecord[],
   openActions: {
     project: VegaProjectInput;
     action: VegaProjectInput["clientActions"][number];
   }[],
 ) {
-  const readyCount = leadSignals.filter(
+  const readyCount = leadRecords.filter(
     (lead) => lead.intentScore >= 65,
   ).length;
 
@@ -567,6 +663,75 @@ function buildMarketingTactics(
         "Use competitor gaps from GEO to create differentiating campaign angles.",
     },
   ];
+}
+
+function generateLeadsForPrompt(prompt: string) {
+  const normalized = prompt.toLowerCase();
+  const segment = inferSegment(prompt);
+  const market = inferMarket(prompt);
+  const wantsLocal =
+    normalized.includes("local") ||
+    normalized.includes("near me") ||
+    normalized.includes("dfw") ||
+    normalized.includes("dallas") ||
+    normalized.includes("fort worth");
+  const baseCompanies = wantsLocal
+    ? ["Northpoint Growth Co.", "ClearPath Operators", "MetroScale Partners"]
+    : ["Signal Ridge Group", "Blue Harbor Systems", "Summitline Ventures"];
+  const roles = [
+    ["Jordan Lee", "Founder"],
+    ["Morgan Patel", "Growth Director"],
+    ["Taylor Brooks", "Operations Lead"],
+  ];
+
+  return baseCompanies.map((company, index) => ({
+    company,
+    contactName: roles[index][0],
+    title: roles[index][1],
+    email: `${roles[index][0].toLowerCase().replaceAll(" ", ".")}@${company
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "")
+      .slice(0, 18)}.com`,
+    website: `https://${company
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "")
+      .slice(0, 18)}.com`,
+    segment,
+    status: index === 0 ? "READY_FOR_OUTREACH" : "NEW",
+    intentScore: Math.max(62, 86 - index * 9),
+    source: "vega_portal_query",
+    notes: `Generated from Vega request: ${prompt}`,
+    nextStep:
+      index === 0
+        ? `Draft a first-touch email for ${market}.`
+        : `Enrich contact fit before outreach for ${market}.`,
+  }));
+}
+
+function inferSegment(prompt: string) {
+  const normalized = prompt.toLowerCase();
+  if (normalized.includes("real estate")) return "Real estate";
+  if (normalized.includes("contractor")) return "Contractors";
+  if (normalized.includes("medical") || normalized.includes("clinic")) {
+    return "Healthcare";
+  }
+  if (normalized.includes("law") || normalized.includes("attorney")) {
+    return "Legal services";
+  }
+  if (normalized.includes("startup")) return "Startups";
+  if (normalized.includes("seo") || normalized.includes("geo")) {
+    return "Search visibility buyers";
+  }
+  return "Qualified prospects";
+}
+
+function inferMarket(prompt: string) {
+  const normalized = prompt.toLowerCase();
+  if (normalized.includes("dallas")) return "Dallas";
+  if (normalized.includes("fort worth")) return "Fort Worth";
+  if (normalized.includes("dfw")) return "DFW";
+  if (normalized.includes("texas")) return "Texas";
+  return "the requested market";
 }
 
 function normalizeList(value: unknown): string[] {

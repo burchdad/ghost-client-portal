@@ -28,9 +28,9 @@ const clientNav = [
 
 const adminNav = [
   { href: "/admin", label: "Overview", icon: Home },
-  { href: "/admin/vega", label: "Vega", icon: Sparkles },
-  { href: "/admin/geo", label: "GEO", icon: Compass },
-  { href: "/admin/echo", label: "Echo", icon: Megaphone },
+  { href: "/vega", label: "Vega", icon: Sparkles },
+  { href: "/geo", label: "GEO", icon: Compass },
+  { href: "/echo", label: "Echo", icon: Megaphone },
   { href: "/admin/organizations", label: "Organizations", icon: Building2 },
   { href: "/admin/proposals", label: "Proposals", icon: Shield },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },

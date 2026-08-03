@@ -1,9 +1,15 @@
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getClientVegaData } from "@/server/vega/service";
+import { createVegaLeadQueryAction } from "./actions";
 
-export default async function VegaPage() {
-  const { organization } = await requireOrganizationMembership();
+export default async function VegaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; notice?: string }>;
+}) {
+  const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
+  const message = await searchParams;
 
   return (
     <section className="space-y-6">
@@ -30,33 +36,44 @@ export default async function VegaPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-line bg-panel p-5">
+      <form
+        action={createVegaLeadQueryAction}
+        className="rounded-lg border border-line bg-panel p-5"
+      >
+        {message.error || message.notice ? (
+          <p
+            className={`mb-4 rounded-md border px-4 py-3 text-sm ${
+              message.error
+                ? "border-red-400/40 bg-red-500/10 text-red-100"
+                : "border-accent/40 bg-accent/10 text-accent"
+            }`}
+          >
+            {message.error ?? message.notice}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
           <div className="flex-1">
             <label
               className="text-sm font-medium text-muted"
               htmlFor="vega-lead-query"
             >
-              Query Vega for leads
+              Message Vega
             </label>
-            <input
+            <textarea
               id="vega-lead-query"
-              className="mt-2 w-full rounded-md border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
-              defaultValue={snapshot.queryPresets[0]?.query}
-              placeholder="Describe the audience, industry, location, buyer role, or intent signal"
+              name="prompt"
+              className="mt-2 min-h-24 w-full rounded-md border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+              defaultValue={
+                snapshot.queries[0]?.prompt ?? snapshot.queryPresets[0]?.query
+              }
+              placeholder="Ask Vega to pull a lead list. Include audience, industry, location, buyer role, and outreach goal."
             />
           </div>
           <button
-            type="button"
+            type="submit"
             className="rounded-md bg-accent px-5 py-3 text-sm font-semibold text-slate-950"
           >
-            Query Leads
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-line px-5 py-3 text-sm hover:border-accent"
-          >
-            Pull List
+            Send Request
           </button>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -69,7 +86,7 @@ export default async function VegaPage() {
             </span>
           ))}
         </div>
-      </div>
+      </form>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.75fr]">
         <div className="rounded-lg border border-line bg-panel">
@@ -80,51 +97,75 @@ export default async function VegaPage() {
             </p>
           </div>
           <div className="divide-y divide-line">
-            {snapshot.leadRecords.map((lead) => (
-              <div key={`${lead.company}-${lead.contact}`} className="p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-sm text-accent">{lead.segment}</p>
-                    <h3 className="mt-1 text-xl font-semibold">
-                      {lead.company}
-                    </h3>
-                    <p className="mt-2 text-sm text-muted">
-                      {lead.contact} - {lead.title}
-                    </p>
-                    <p className="mt-3 text-sm text-muted">{lead.nextStep}</p>
+            {snapshot.leadRecords.length ? (
+              snapshot.leadRecords.map((lead) => (
+                <div key={`${lead.company}-${lead.contact}`} className="p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-sm text-accent">{lead.segment}</p>
+                      <h3 className="mt-1 text-xl font-semibold">
+                        {lead.company}
+                      </h3>
+                      <p className="mt-2 text-sm text-muted">
+                        {lead.contact} - {lead.title}
+                      </p>
+                      <p className="mt-3 text-sm text-muted">{lead.nextStep}</p>
+                    </div>
+                    <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-80">
+                      <Mini label="Stage" value={lead.stage} />
+                      <Mini label="Intent" value={String(lead.intentScore)} />
+                      <Mini label="Email" value={lead.emailStatus} />
+                    </div>
                   </div>
-                  <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-80">
-                    <Mini label="Stage" value={lead.stage} />
-                    <Mini label="Intent" value={String(lead.intentScore)} />
-                    <Mini label="Email" value={lead.emailStatus} />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                    >
+                      Add to List
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                    >
+                      Draft Outreach
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                    >
+                      Mark Engaged
+                    </button>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                  >
-                    Add to List
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                  >
-                    Draft Outreach
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                  >
-                    Mark Engaged
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="p-5 text-sm text-muted">
+                No Vega leads have been pulled for this workspace yet. Send a
+                request above and Vega will populate this list.
+              </p>
+            )}
           </div>
         </div>
 
         <div className="space-y-5">
+          <Panel title="Recent Vega requests">
+            {snapshot.queries.length ? (
+              snapshot.queries.map((query) => (
+                <div key={query.id} className="rounded-md bg-white/[0.04] p-4">
+                  <p className="font-semibold">{query.prompt}</p>
+                  <p className="mt-2 text-sm text-muted">
+                    {query.status} - {query.resultCount} leads
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
+                Requests you send to Vega will appear here.
+              </p>
+            )}
+          </Panel>
+
           <Panel title="Lead lists">
             {snapshot.leadLists.map((list) => (
               <div key={list.name} className="rounded-md bg-white/[0.04] p-4">

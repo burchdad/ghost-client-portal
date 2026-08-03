@@ -1,8 +1,8 @@
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getClientVegaData } from "@/server/vega/service";
 
 export default async function EchoPage() {
-  const { organization } = await requireOrganizationMembership();
+  const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
 
   return (
