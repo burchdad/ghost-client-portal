@@ -2,14 +2,16 @@ import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getClientVegaData } from "@/server/vega/service";
 import { createVegaLeadQueryAction } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function VegaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string }>;
+  searchParams?: Promise<{ error?: string; notice?: string }>;
 }) {
   const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
-  const message = await searchParams;
+  const message = (await searchParams) ?? {};
 
   return (
     <section className="space-y-6">
