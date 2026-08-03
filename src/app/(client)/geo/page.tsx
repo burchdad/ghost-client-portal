@@ -7,7 +7,7 @@ export default async function GeoPage() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-lg border border-line bg-panel p-6">
+      <div className="panel-surface rounded-lg border border-line p-6">
         <p className="text-sm uppercase tracking-[0.24em] text-accent">GEO</p>
         <h1 className="mt-3 text-3xl font-semibold">
           Search and generative visibility for {organization.name}

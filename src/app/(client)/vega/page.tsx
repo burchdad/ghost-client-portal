@@ -1,6 +1,9 @@
 import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getClientVegaData } from "@/server/vega/service";
-import { createVegaLeadQueryAction } from "./actions";
+import {
+  createVegaLeadQueryAction,
+  updateVegaLeadStatusAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,7 @@ export default async function VegaPage({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-lg border border-line bg-panel p-6">
+      <div className="panel-surface rounded-lg border border-line p-6">
         <p className="text-sm uppercase tracking-[0.24em] text-accent">Vega</p>
         <div className="mt-3 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -120,24 +123,21 @@ export default async function VegaPage({
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                    >
-                      Add to List
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                    >
-                      Draft Outreach
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                    >
-                      Mark Engaged
-                    </button>
+                    <LeadStatusButton
+                      leadId={lead.id}
+                      status="QUALIFIED"
+                      label="Add to List"
+                    />
+                    <LeadStatusButton
+                      leadId={lead.id}
+                      status="READY_FOR_OUTREACH"
+                      label="Draft Outreach"
+                    />
+                    <LeadStatusButton
+                      leadId={lead.id}
+                      status="ENGAGED"
+                      label="Mark Engaged"
+                    />
                   </div>
                 </div>
               ))
@@ -241,5 +241,25 @@ function Mini({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-1 font-semibold">{value}</p>
     </div>
+  );
+}
+
+function LeadStatusButton({
+  leadId,
+  status,
+  label,
+}: {
+  leadId: string;
+  status: string;
+  label: string;
+}) {
+  return (
+    <form action={updateVegaLeadStatusAction}>
+      <input type="hidden" name="leadId" value={leadId} />
+      <input type="hidden" name="status" value={status} />
+      <button className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent">
+        {label}
+      </button>
+    </form>
   );
 }

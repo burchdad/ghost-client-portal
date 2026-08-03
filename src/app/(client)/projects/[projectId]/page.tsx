@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-lg border border-line bg-panel p-6">
+      <div className="panel-surface rounded-lg border border-line p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-sm text-accent">{project.organization.name}</p>

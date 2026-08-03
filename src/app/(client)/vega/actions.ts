@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireClientWorkspace } from "@/lib/auth/guards";
+import { getDb } from "@/lib/db";
 import { createVegaLeadQuery } from "@/server/vega/service";
 import { checkRateLimit } from "@/server/security/rate-limit";
 
@@ -30,6 +31,41 @@ export async function createVegaLeadQueryAction(formData: FormData) {
 
   revalidatePath("/vega");
   redirectWith("notice", "Vega lead request created.");
+}
+
+const leadStatuses = new Set(["QUALIFIED", "READY_FOR_OUTREACH", "ENGAGED"]);
+
+export async function updateVegaLeadStatusAction(formData: FormData) {
+  const leadId = String(formData.get("leadId") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+  const { organization } = await requireClientWorkspace();
+
+  if (!leadId || !leadStatuses.has(status)) {
+    redirectWith("error", "Vega could not update that lead.");
+  }
+
+  const updated = await getDb().vegaLead.updateMany({
+    where: {
+      id: leadId,
+      organizationId: organization.id,
+    },
+    data: {
+      status,
+      nextStep:
+        status === "QUALIFIED"
+          ? "Added to the qualified prospect list."
+          : status === "READY_FOR_OUTREACH"
+            ? "Draft outreach copy and review before sending."
+            : "Engagement recorded. Prepare follow-up.",
+    },
+  });
+
+  if (!updated.count) {
+    redirectWith("error", "That lead is not available in this workspace.");
+  }
+
+  revalidatePath("/vega");
+  redirectWith("notice", "Vega lead updated.");
 }
 
 function redirectWith(key: "error" | "notice", value: string): never {

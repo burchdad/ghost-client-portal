@@ -12,7 +12,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-lg border border-line bg-panel p-6">
+      <section className="panel-surface rounded-lg border border-line p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-sm text-accent">Welcome back, {firstName}</p>

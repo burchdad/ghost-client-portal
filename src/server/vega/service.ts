@@ -32,6 +32,7 @@ type VegaProjectInput = {
 };
 
 type VegaLeadRecord = {
+  id: string;
   company: string;
   contact: string;
   title: string;
@@ -153,6 +154,7 @@ export async function getClientVegaData(organizationId: string) {
       projects,
       responses,
       storedLeads: storedLeads.map((lead) => ({
+        id: lead.id,
         company: lead.company,
         contact: lead.contactName ?? "Contact pending",
         title: lead.title ?? "Decision maker",
@@ -456,6 +458,7 @@ function buildLeadRecords(
 ) {
   return leadSignals.length
     ? leadSignals.map((lead, index) => ({
+        id: `generated-${index}`,
         company: lead.name.replace(/ opportunity$/i, ""),
         contact: ["Operations Lead", "Growth Director", "Founder"][index % 3],
         title: ["Decision maker", "Budget owner", "Primary evaluator"][
@@ -470,6 +473,7 @@ function buildLeadRecords(
       }))
     : [
         {
+          id: "setup-placeholder",
           company: "No Vega lead list connected",
           contact: "Lead source pending",
           title: "Import or query leads",
