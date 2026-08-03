@@ -57,6 +57,33 @@ export type VegaSnapshot = {
     intentScore: number;
     nextStep: string;
   }[];
+  leadRecords: {
+    company: string;
+    contact: string;
+    title: string;
+    segment: string;
+    stage: string;
+    intentScore: number;
+    emailStatus: string;
+    nextStep: string;
+  }[];
+  leadLists: {
+    name: string;
+    count: number;
+    source: string;
+    status: string;
+  }[];
+  outreachSequences: {
+    name: string;
+    audience: string;
+    status: string;
+    steps: number;
+    nextAction: string;
+  }[];
+  queryPresets: {
+    label: string;
+    query: string;
+  }[];
   engagement: {
     title: string;
     body: string;
@@ -179,6 +206,10 @@ export function buildVegaSnapshot(input: {
     positioning: buildPositioning(projectSignals, competitors.length),
     competitors,
     leads: leadSignals,
+    leadRecords: buildLeadRecords(leadSignals),
+    leadLists: buildLeadLists(leadSignals, competitors.length),
+    outreachSequences: buildOutreachSequences(leadSignals, openActions),
+    queryPresets: buildQueryPresets(projectSignals, competitors),
     engagement: buildEngagement(input.activity, openActions),
     marketingTactics: buildMarketingTactics(projectSignals, openActions),
   };
@@ -310,6 +341,147 @@ function buildLeadSignals(
   }));
 
   return [...projectLeads, ...actionLeads].slice(0, 6);
+}
+
+function buildLeadRecords(
+  leadSignals: {
+    name: string;
+    source: string;
+    stage: string;
+    intentScore: number;
+    nextStep: string;
+  }[],
+) {
+  return leadSignals.length
+    ? leadSignals.map((lead, index) => ({
+        company: lead.name.replace(/ opportunity$/i, ""),
+        contact: ["Operations Lead", "Growth Director", "Founder"][index % 3],
+        title: ["Decision maker", "Budget owner", "Primary evaluator"][
+          index % 3
+        ],
+        segment: lead.source,
+        stage: lead.stage,
+        intentScore: lead.intentScore,
+        emailStatus:
+          lead.intentScore >= 80 ? "Ready for outreach" : "Needs enrichment",
+        nextStep: lead.nextStep,
+      }))
+    : [
+        {
+          company: "No Vega lead list connected",
+          contact: "Lead source pending",
+          title: "Import or query leads",
+          segment: "Vega setup",
+          stage: "Needs source",
+          intentScore: 0,
+          emailStatus: "Not ready",
+          nextStep:
+            "Connect a lead source or run a Vega query to populate this workspace.",
+        },
+      ];
+}
+
+function buildLeadLists(
+  leadSignals: {
+    source: string;
+    intentScore: number;
+  }[],
+  competitorCount: number,
+) {
+  const qualified = leadSignals.filter((lead) => lead.intentScore >= 65).length;
+  const highIntent = leadSignals.filter(
+    (lead) => lead.intentScore >= 80,
+  ).length;
+
+  return [
+    {
+      name: "Qualified prospects",
+      count: qualified,
+      source: "Vega query",
+      status: qualified ? "Ready to pull" : "Awaiting matches",
+    },
+    {
+      name: "High-intent outreach",
+      count: highIntent,
+      source: "Intent scoring",
+      status: highIntent ? "Outreach ready" : "Needs enrichment",
+    },
+    {
+      name: "Competitor gap targets",
+      count: competitorCount,
+      source: "GEO competitor set",
+      status: competitorCount ? "Ready for review" : "Needs competitor input",
+    },
+  ];
+}
+
+function buildOutreachSequences(
+  leadSignals: {
+    source: string;
+    intentScore: number;
+  }[],
+  openActions: {
+    project: VegaProjectInput;
+    action: VegaProjectInput["clientActions"][number];
+  }[],
+) {
+  const readyCount = leadSignals.filter(
+    (lead) => lead.intentScore >= 65,
+  ).length;
+
+  return [
+    {
+      name: "Intro value email",
+      audience: `${readyCount} qualified leads`,
+      status: readyCount ? "Draft ready" : "Waiting on lead list",
+      steps: 3,
+      nextAction: "Review subject line, offer, and call-to-action.",
+    },
+    {
+      name: "Follow-up and proof sequence",
+      audience: "Warm prospects",
+      status: openActions.length ? "Needs client input" : "Queued",
+      steps: 4,
+      nextAction:
+        openActions[0]?.action.title ??
+        "Choose a lead list before generating follow-up copy.",
+    },
+    {
+      name: "Reactivation campaign",
+      audience: "Dormant or unresponsive leads",
+      status: "Planned",
+      steps: 2,
+      nextAction: "Pull a stale lead list or upload prior prospect data.",
+    },
+  ];
+}
+
+function buildQueryPresets(
+  projectSignals: { project: VegaProjectInput; progress: number }[],
+  competitors: { name: string; source: string; note: string }[],
+) {
+  const primaryProject = projectSignals[0]?.project;
+  const service = primaryProject?.serviceCategory ?? "growth services";
+  const competitor = competitors.find(
+    (item) => item.name !== "Competitor set needed",
+  )?.name;
+
+  return [
+    {
+      label: "Find local buyers",
+      query: `${service} decision makers in my target market`,
+    },
+    {
+      label: "Pull competitor gap list",
+      query: competitor
+        ? `companies comparing us against ${competitor}`
+        : "companies underserved by our top competitors",
+    },
+    {
+      label: "Build outreach segment",
+      query: `high-intent leads for ${primaryProject?.name ?? "current campaign"}`,
+    },
+  ];
 }
 
 function buildEngagement(

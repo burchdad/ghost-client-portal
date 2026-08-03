@@ -47,6 +47,19 @@ describe("Vega client intelligence", () => {
     expect(snapshot.leads.map((lead) => lead.name)).toContain(
       "AI Search Growth Program opportunity",
     );
+    expect(snapshot.leadRecords[0]).toMatchObject({
+      company: "AI Search Growth Program",
+      emailStatus: "Needs enrichment",
+    });
+    expect(snapshot.leadLists.map((list) => list.name)).toContain(
+      "Qualified prospects",
+    );
+    expect(
+      snapshot.outreachSequences.map((sequence) => sequence.name),
+    ).toContain("Intro value email");
+    expect(snapshot.queryPresets.map((preset) => preset.label)).toContain(
+      "Find local buyers",
+    );
     expect(snapshot.competitors.map((competitor) => competitor.name)).toEqual([
       "Example Competitor",
       "Search Rival",
