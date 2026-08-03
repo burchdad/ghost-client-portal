@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Home,
   FlaskConical,
+  Sparkles,
   Settings,
   Shield,
   WalletCards,
@@ -14,6 +15,7 @@ import type { AuthenticatedUser } from "@/lib/auth/session";
 
 const clientNav = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/vega", label: "Vega", icon: Sparkles },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/proposals", label: "Proposals", icon: Shield },
   { href: "/payments", label: "Payments", icon: WalletCards },
@@ -22,6 +24,7 @@ const clientNav = [
 
 const adminNav = [
   { href: "/admin", label: "Overview", icon: Home },
+  { href: "/admin/vega", label: "Vega", icon: Sparkles },
   { href: "/admin/organizations", label: "Organizations", icon: Building2 },
   { href: "/admin/proposals", label: "Proposals", icon: Shield },
   { href: "/admin/projects", label: "Projects", icon: FolderKanban },
