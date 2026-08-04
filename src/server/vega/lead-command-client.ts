@@ -1,4 +1,4 @@
-type LeadCommandProvider = "pdl" | "ghost-lead-agent" | "google-maps";
+type LeadCommandProvider = "pdl" | "apollo" | "ghost-lead-agent" | "google-maps";
 
 export type PortalVegaLeadInput = {
   company: string;
@@ -149,6 +149,16 @@ export function inferLeadCommandProvider(prompt: string): LeadCommandProvider {
 
   if (localSignals.some((signal) => normalized.includes(signal))) {
     return "google-maps";
+  }
+
+  if (
+    normalized.includes("apollo") ||
+    normalized.includes("founder") ||
+    normalized.includes("ceo") ||
+    normalized.includes("decision maker") ||
+    normalized.includes("sales manager")
+  ) {
+    return "apollo";
   }
 
   return "pdl";

@@ -108,6 +108,11 @@ describe("Lead Command client", () => {
         "Need 20 commercial window cleaning leads in Tyler, Texas",
       ),
     ).toBe("google-maps");
+    expect(
+      inferLeadCommandProvider(
+        "Need 20 founder decision makers for a B2B service campaign",
+      ),
+    ).toBe("apollo");
     expect(inferRequestedLeadCount("Vega, pull 75 prospects")).toBe(50);
     expect(
       inferLeadLocation(
