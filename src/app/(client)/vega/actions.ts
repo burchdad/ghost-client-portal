@@ -23,14 +23,31 @@ export async function createVegaLeadQueryAction(formData: FormData) {
     redirectWith("error", "Tell Vega what kind of leads to pull.");
   }
 
-  await createVegaLeadQuery({
+  const query = await createVegaLeadQuery({
     organizationId: organization.id,
     requestedById: user.id,
     prompt,
   });
 
   revalidatePath("/vega");
-  redirectWith("notice", "Vega lead request created.");
+  if (query.status === "FAILED") {
+    redirectWith(
+      "error",
+      "Vega could not pull live Lead Command leads. Check source health and try again.",
+    );
+  }
+
+  if (query.resultCount === 0) {
+    redirectWith(
+      "notice",
+      "Vega ran the live Lead Command source, but no leads matched this request.",
+    );
+  }
+
+  redirectWith(
+    "notice",
+    `Vega pulled ${query.resultCount} live Lead Command leads.`,
+  );
 }
 
 const leadStatuses = new Set(["QUALIFIED", "READY_FOR_OUTREACH", "ENGAGED"]);

@@ -2,6 +2,7 @@ import type { ClientActionStatus } from "@prisma/client";
 import { isClientSafeActivity } from "@/server/activity/client-safe";
 import { calculateProjectProgress } from "@/server/projects/progress";
 import { getDb } from "@/lib/db";
+import { searchLeadCommandLeads } from "./lead-command-client";
 
 type OnboardingResponseInput = {
   fieldKey: string;
@@ -215,7 +216,54 @@ export async function createVegaLeadQuery(input: {
   prompt: string;
 }) {
   const db = getDb();
-  const leads = generateLeadsForPrompt(input.prompt);
+  let searchResult: Awaited<ReturnType<typeof searchLeadCommandLeads>>;
+
+  try {
+    searchResult = await searchLeadCommandLeads(input.prompt);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Lead Command sourcing failed for this request.";
+
+    return db.$transaction(async (tx) => {
+      const query = await tx.vegaLeadQuery.create({
+        data: {
+          organizationId: input.organizationId,
+          requestedById: input.requestedById,
+          prompt: input.prompt,
+          status: "FAILED",
+          source: "lead_command",
+          resultCount: 0,
+          completedAt: new Date(),
+        },
+      });
+
+      await tx.activityEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          type: "vega.leads_failed",
+          title: "Vega lead request failed",
+          body: message,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: input.requestedById,
+          eventType: "vega.lead_query.failed",
+          entityType: "VegaLeadQuery",
+          entityId: query.id,
+          metadata: {
+            organizationId: input.organizationId,
+            error: message,
+          },
+        },
+      });
+
+      return query;
+    });
+  }
 
   return db.$transaction(async (tx) => {
     const query = await tx.vegaLeadQuery.create({
@@ -224,25 +272,28 @@ export async function createVegaLeadQuery(input: {
         requestedById: input.requestedById,
         prompt: input.prompt,
         status: "COMPLETED",
-        resultCount: leads.length,
+        source: searchResult.source,
+        resultCount: searchResult.leads.length,
         completedAt: new Date(),
       },
     });
 
-    await tx.vegaLead.createMany({
-      data: leads.map((lead) => ({
-        organizationId: input.organizationId,
-        queryId: query.id,
-        ...lead,
-      })),
-    });
+    if (searchResult.leads.length) {
+      await tx.vegaLead.createMany({
+        data: searchResult.leads.map((lead) => ({
+          organizationId: input.organizationId,
+          queryId: query.id,
+          ...lead,
+        })),
+      });
+    }
 
     await tx.activityEvent.create({
       data: {
         organizationId: input.organizationId,
         type: "vega.leads_pulled",
         title: "Vega lead request completed",
-        body: input.prompt,
+        body: searchResult.message,
       },
     });
 
@@ -254,7 +305,8 @@ export async function createVegaLeadQuery(input: {
         entityId: query.id,
         metadata: {
           organizationId: input.organizationId,
-          resultCount: leads.length,
+          provider: searchResult.provider,
+          resultCount: searchResult.leads.length,
         },
       },
     });
@@ -667,75 +719,6 @@ function buildMarketingTactics(
         "Use competitor gaps from GEO to create differentiating campaign angles.",
     },
   ];
-}
-
-function generateLeadsForPrompt(prompt: string) {
-  const normalized = prompt.toLowerCase();
-  const segment = inferSegment(prompt);
-  const market = inferMarket(prompt);
-  const wantsLocal =
-    normalized.includes("local") ||
-    normalized.includes("near me") ||
-    normalized.includes("dfw") ||
-    normalized.includes("dallas") ||
-    normalized.includes("fort worth");
-  const baseCompanies = wantsLocal
-    ? ["Northpoint Growth Co.", "ClearPath Operators", "MetroScale Partners"]
-    : ["Signal Ridge Group", "Blue Harbor Systems", "Summitline Ventures"];
-  const roles = [
-    ["Jordan Lee", "Founder"],
-    ["Morgan Patel", "Growth Director"],
-    ["Taylor Brooks", "Operations Lead"],
-  ];
-
-  return baseCompanies.map((company, index) => ({
-    company,
-    contactName: roles[index][0],
-    title: roles[index][1],
-    email: `${roles[index][0].toLowerCase().replaceAll(" ", ".")}@${company
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "")
-      .slice(0, 18)}.com`,
-    website: `https://${company
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "")
-      .slice(0, 18)}.com`,
-    segment,
-    status: index === 0 ? "READY_FOR_OUTREACH" : "NEW",
-    intentScore: Math.max(62, 86 - index * 9),
-    source: "vega_portal_query",
-    notes: `Generated from Vega request: ${prompt}`,
-    nextStep:
-      index === 0
-        ? `Draft a first-touch email for ${market}.`
-        : `Enrich contact fit before outreach for ${market}.`,
-  }));
-}
-
-function inferSegment(prompt: string) {
-  const normalized = prompt.toLowerCase();
-  if (normalized.includes("real estate")) return "Real estate";
-  if (normalized.includes("contractor")) return "Contractors";
-  if (normalized.includes("medical") || normalized.includes("clinic")) {
-    return "Healthcare";
-  }
-  if (normalized.includes("law") || normalized.includes("attorney")) {
-    return "Legal services";
-  }
-  if (normalized.includes("startup")) return "Startups";
-  if (normalized.includes("seo") || normalized.includes("geo")) {
-    return "Search visibility buyers";
-  }
-  return "Qualified prospects";
-}
-
-function inferMarket(prompt: string) {
-  const normalized = prompt.toLowerCase();
-  if (normalized.includes("dallas")) return "Dallas";
-  if (normalized.includes("fort worth")) return "Fort Worth";
-  if (normalized.includes("dfw")) return "DFW";
-  if (normalized.includes("texas")) return "Texas";
-  return "the requested market";
 }
 
 function normalizeList(value: unknown): string[] {
