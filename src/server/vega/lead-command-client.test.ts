@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  LeadCommandAuthError,
   inferLeadCommandProvider,
   inferLeadCommandQuery,
   inferLeadLocation,
@@ -15,34 +16,36 @@ describe("Lead Command client", () => {
 
   it("turns commercial cleaning prompts into real Lead Command local searches", async () => {
     vi.stubEnv("LEAD_COMMAND_BASE_URL", "https://leadgen.test");
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(init?.method).toBe("POST");
-      expect(JSON.parse(String(init?.body))).toMatchObject({
-        provider: "google-maps",
-        location: "Tyler, Texas",
-        size: 30,
-      });
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          provider: "google-maps",
+          location: "Tyler, Texas",
+          size: 30,
+        });
 
-      return Response.json({
-        provider: "google-maps",
-        leads: [
-          {
-            name: "Jordan Lee",
-            companyName: "Brookshire Grocery Co.",
-            title: "Facilities Manager",
-            email: "jordan@example.com",
-            phone: "903-555-0100",
-            website: "https://example.com",
-            niche: "Commercial property",
-            score: 91,
-            confidence: 82,
-            buyerFit: "Commercial exterior maintenance buyer",
-            intentSignals: ["local commercial account"],
-            signalSummary: "Strong fit for exterior cleaning contract.",
-          },
-        ],
-      });
-    });
+        return Response.json({
+          provider: "google-maps",
+          leads: [
+            {
+              name: "Jordan Lee",
+              companyName: "Brookshire Grocery Co.",
+              title: "Facilities Manager",
+              email: "jordan@example.com",
+              phone: "903-555-0100",
+              website: "https://example.com",
+              niche: "Commercial property",
+              score: 91,
+              confidence: 82,
+              buyerFit: "Commercial exterior maintenance buyer",
+              intentSignals: ["local commercial account"],
+              signalSummary: "Strong fit for exterior cleaning contract.",
+            },
+          ],
+        });
+      },
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await searchLeadCommandLeads(
@@ -100,6 +103,23 @@ describe("Lead Command client", () => {
       status: "QUALIFIED",
       nextStep: "Create phone-assist task; email needs enrichment.",
     });
+  });
+
+  it("classifies Lead Command authorization failures", async () => {
+    vi.stubEnv("LEAD_COMMAND_BASE_URL", "https://leadgen.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+          }),
+      ),
+    );
+
+    await expect(
+      searchLeadCommandLeads("Tyler HVAC companies that need websites"),
+    ).rejects.toBeInstanceOf(LeadCommandAuthError);
   });
 
   it("infers provider, location, count, and buyer query from natural language", () => {

@@ -2,7 +2,10 @@ import type { ClientActionStatus } from "@prisma/client";
 import { isClientSafeActivity } from "@/server/activity/client-safe";
 import { calculateProjectProgress } from "@/server/projects/progress";
 import { getDb } from "@/lib/db";
-import { searchLeadCommandLeads } from "./lead-command-client";
+import {
+  LeadCommandAuthError,
+  searchLeadCommandLeads,
+} from "./lead-command-client";
 
 type OnboardingResponseInput = {
   fieldKey: string;
@@ -225,6 +228,8 @@ export async function createVegaLeadQuery(input: {
       error instanceof Error
         ? error.message
         : "Lead Command sourcing failed for this request.";
+    const status =
+      error instanceof LeadCommandAuthError ? "AUTH_FAILED" : "FAILED";
 
     return db.$transaction(async (tx) => {
       const query = await tx.vegaLeadQuery.create({
@@ -232,7 +237,7 @@ export async function createVegaLeadQuery(input: {
           organizationId: input.organizationId,
           requestedById: input.requestedById,
           prompt: input.prompt,
-          status: "FAILED",
+          status,
           source: "lead_command",
           resultCount: 0,
           completedAt: new Date(),
@@ -257,6 +262,7 @@ export async function createVegaLeadQuery(input: {
           metadata: {
             organizationId: input.organizationId,
             error: message,
+            status,
           },
         },
       });

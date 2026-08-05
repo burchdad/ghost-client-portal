@@ -15,6 +15,9 @@ export default async function VegaPage({
   const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
   const message = (await searchParams) ?? {};
+  const sourceAuthIssue = snapshot.queries.some(
+    (query) => query.status === "AUTH_FAILED",
+  );
 
   return (
     <section className="space-y-6">
@@ -45,6 +48,12 @@ export default async function VegaPage({
         action={createVegaLeadQueryAction}
         className="rounded-lg border border-line bg-panel p-5"
       >
+        {sourceAuthIssue && !message.error ? (
+          <p className="mb-4 rounded-md border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Lead Command needs a valid production access key before Vega can
+            pull live prospect data.
+          </p>
+        ) : null}
         {message.error || message.notice ? (
           <p
             className={`mb-4 rounded-md border px-4 py-3 text-sm ${
@@ -68,9 +77,7 @@ export default async function VegaPage({
               id="vega-lead-query"
               name="prompt"
               className="mt-2 min-h-24 w-full rounded-md border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
-              defaultValue={
-                snapshot.queries[0]?.prompt ?? snapshot.queryPresets[0]?.query
-              }
+              defaultValue={snapshot.queryPresets[0]?.query}
               placeholder="Ask Vega to pull a lead list. Include audience, industry, location, buyer role, and outreach goal."
             />
           </div>

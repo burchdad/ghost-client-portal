@@ -1,4 +1,5 @@
-type LeadCommandProvider = "pdl" | "apollo" | "ghost-lead-agent" | "google-maps";
+type LeadCommandProvider =
+  "pdl" | "apollo" | "ghost-lead-agent" | "google-maps";
 
 export type PortalVegaLeadInput = {
   company: string;
@@ -53,6 +54,13 @@ export type LeadCommandSearchResult = {
   message: string;
   leads: PortalVegaLeadInput[];
 };
+
+export class LeadCommandAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LeadCommandAuthError";
+  }
+}
 
 export async function searchLeadCommandLeads(
   prompt: string,
@@ -118,6 +126,12 @@ async function fetchLeadCommandSearch(input: {
 
   if (!response.ok) {
     const body = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new LeadCommandAuthError(
+        "Lead Command rejected the portal request. Set a valid LEAD_COMMAND_ACCESS_KEY in Vercel production that matches the Lead Command source API.",
+      );
+    }
+
     throw new Error(
       `Lead Command search failed (${response.status}): ${body.slice(0, 220)}`,
     );
@@ -265,7 +279,11 @@ function mapLeadCommandLead(
     phone,
     website,
     segment: lead.niche ?? "Qualified prospects",
-    status: email ? "READY_FOR_OUTREACH" : phone || website ? "QUALIFIED" : "NEW",
+    status: email
+      ? "READY_FOR_OUTREACH"
+      : phone || website
+        ? "QUALIFIED"
+        : "NEW",
     intentScore: score,
     source,
     notes,
@@ -295,7 +313,10 @@ function summarizeDiagnostics(response: LeadCommandSearchResponse) {
 
 function cleanLocation(value: string) {
   return value
-    .replace(/\b(?:surrounding cities|within \d+\s*mile range|score \d+)\b/gi, "")
+    .replace(
+      /\b(?:surrounding cities|within \d+\s*mile range|score \d+)\b/gi,
+      "",
+    )
     .replace(/\s+/g, " ")
     .replace(/,+/g, ",")
     .trim()

@@ -30,6 +30,13 @@ export async function createVegaLeadQueryAction(formData: FormData) {
   });
 
   revalidatePath("/vega");
+  if (query.status === "AUTH_FAILED") {
+    redirectWith(
+      "error",
+      "Lead Command is not authorized for this portal yet. Add or update LEAD_COMMAND_ACCESS_KEY in Vercel production.",
+    );
+  }
+
   if (query.status === "FAILED") {
     redirectWith(
       "error",
