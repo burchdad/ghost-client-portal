@@ -1,6 +1,7 @@
 import {
   ArrowUpRight,
   CheckCircle2,
+  Download,
   Mail,
   Phone,
   Search,
@@ -56,6 +57,17 @@ export default async function VegaPage({
         eyebrow="Vega Lead Command"
         title={`LeadGen workspace for ${organization.name}`}
         body="Ask Vega for a market, review sourced prospects, build lists, and move qualified companies into outreach from one client-safe workspace."
+        actions={
+          snapshot.leadRecords.length ? (
+            <a
+              href="/vega/export"
+              className="inline-flex items-center gap-2 rounded-md border border-line px-4 py-3 text-sm hover:border-accent"
+            >
+              <Download size={16} aria-hidden />
+              Export CSV
+            </a>
+          ) : null
+        }
         metrics={[
           {
             label: "Prospects",
@@ -342,6 +354,16 @@ function LeadCard({
               {lead.notes.split("\n").slice(0, 2).join(" ")}
             </p>
           ) : null}
+          <div className="mt-3 rounded-md border border-accent/20 bg-accent/10 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+              First-touch draft angle
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Lead with a specific growth gap for {lead.company}, reference the
+              market signal Vega captured, and offer a quick audit before
+              pitching a full engagement.
+            </p>
+          </div>
         </div>
         <div className="grid gap-2 text-sm">
           <ContactSignal

@@ -6,6 +6,7 @@ import {
   FolderKanban,
   Home,
   FlaskConical,
+  LifeBuoy,
   Megaphone,
   Sparkles,
   Settings,
@@ -23,7 +24,9 @@ const clientNav = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/proposals", label: "Proposals", icon: Shield },
   { href: "/payments", label: "Payments", icon: WalletCards },
+  { href: "/requests", label: "Requests", icon: LifeBuoy },
   { href: "/settings/organization", label: "Organization", icon: Building2 },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 const adminNav = [
@@ -91,6 +94,14 @@ export function PortalShell({
               <p className="font-medium">{user.name}</p>
             </div>
             <div className="flex items-center gap-2">
+              {mode === "client" ? (
+                <Link
+                  href="/requests"
+                  className="hidden rounded-md border border-line bg-white/[0.04] px-3 py-2 text-sm hover:border-accent sm:inline-flex"
+                >
+                  Ask Ghost
+                </Link>
+              ) : null}
               <Link
                 href={mode === "admin" ? "/admin/audit" : "/notifications"}
                 className="rounded-md border border-line bg-white/[0.04] p-2 hover:border-accent"

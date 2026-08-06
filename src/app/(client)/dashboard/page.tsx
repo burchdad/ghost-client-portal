@@ -2,10 +2,12 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
+  BellRing,
   CheckCircle2,
   Compass,
   FolderKanban,
   Megaphone,
+  MessageSquareText,
   Sparkles,
   WalletCards,
 } from "lucide-react";
@@ -30,6 +32,35 @@ export default async function DashboardPage() {
     data.summary.activeProjects > 0 ||
     data.summary.openActions > 0 ||
     data.safeActivity.length > 0;
+  const checklist = [
+    {
+      label: "Activate account",
+      done: organization.accountStatus === "ACTIVE",
+      href: "/settings/security",
+    },
+    {
+      label: "Review approvals",
+      done: data.summary.awaitingApproval === 0,
+      href: "/proposals",
+    },
+    {
+      label: "Complete open actions",
+      done: data.summary.openActions === 0,
+      href: activeProject
+        ? `/projects/${activeProject.id}#actions`
+        : "/projects",
+    },
+    {
+      label: "Configure alerts",
+      done: true,
+      href: "/settings",
+    },
+    {
+      label: "Ask Ghost when blocked",
+      done: true,
+      href: "/requests",
+    },
+  ];
 
   return (
     <div className="space-y-8">
@@ -165,38 +196,64 @@ export default async function DashboardPage() {
           </div>
         </SectionPanel>
 
-        <SectionPanel title="Operating modules" eyebrow="Ghost AI system">
-          <div className="grid gap-3 md:grid-cols-2">
-            <ModuleCard
-              icon={Sparkles}
-              title="Vega"
-              href="/vega"
-              body="Lead sourcing, lists, enrichment, and outreach readiness."
-              status="Live"
-            />
-            <ModuleCard
-              icon={Compass}
-              title="GEO"
-              href="/geo"
-              body="SEO, AEO, GEO positioning, competitors, and visibility gaps."
-              status="Tracking"
-            />
-            <ModuleCard
-              icon={Megaphone}
-              title="Echo"
-              href="/echo"
-              body="Marketing tactics, campaign moves, and content plays."
-              status="Planning"
-            />
-            <ModuleCard
-              icon={WalletCards}
-              title="Payments"
-              href="/payments"
-              body="Balances, checkout state, history, and billing readiness."
-              status={data.summary.amountDueCents ? "Due" : "Clear"}
-            />
-          </div>
-        </SectionPanel>
+        <div className="space-y-5">
+          <SectionPanel title="Client launch checklist" eyebrow="Onboarding">
+            <div className="space-y-3">
+              {checklist.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center justify-between gap-4 rounded-md border border-line bg-white/[0.035] p-4 transition hover:border-accent"
+                >
+                  <span className="flex items-center gap-3">
+                    <CheckCircle2
+                      size={18}
+                      className={item.done ? "text-accent" : "text-muted"}
+                      aria-hidden
+                    />
+                    <span className="font-semibold">{item.label}</span>
+                  </span>
+                  <StatusBadge tone={item.done ? "accent" : "warning"}>
+                    {item.done ? "Ready" : "Needs review"}
+                  </StatusBadge>
+                </Link>
+              ))}
+            </div>
+          </SectionPanel>
+
+          <SectionPanel title="Operating modules" eyebrow="Ghost AI system">
+            <div className="grid gap-3 md:grid-cols-2">
+              <ModuleCard
+                icon={Sparkles}
+                title="Vega"
+                href="/vega"
+                body="Lead sourcing, lists, enrichment, and outreach readiness."
+                status="Live"
+              />
+              <ModuleCard
+                icon={Compass}
+                title="GEO"
+                href="/geo"
+                body="SEO, AEO, GEO positioning, competitors, and visibility gaps."
+                status="Tracking"
+              />
+              <ModuleCard
+                icon={Megaphone}
+                title="Echo"
+                href="/echo"
+                body="Marketing tactics, campaign moves, and content plays."
+                status="Planning"
+              />
+              <ModuleCard
+                icon={WalletCards}
+                title="Payments"
+                href="/payments"
+                body="Balances, checkout state, history, and billing readiness."
+                status={data.summary.amountDueCents ? "Due" : "Clear"}
+              />
+            </div>
+          </SectionPanel>
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
@@ -276,6 +333,31 @@ export default async function DashboardPage() {
             )}
           </div>
         </SectionPanel>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <Link
+          href="/requests"
+          className="rounded-lg border border-line bg-panel p-5 transition hover:border-accent"
+        >
+          <MessageSquareText size={20} className="text-accent" aria-hidden />
+          <h2 className="mt-4 text-xl font-semibold">Need something?</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Submit a request to Ghost and keep the follow-up attached to this
+            workspace.
+          </p>
+        </Link>
+        <Link
+          href="/settings"
+          className="rounded-lg border border-line bg-panel p-5 transition hover:border-accent"
+        >
+          <BellRing size={20} className="text-accent" aria-hidden />
+          <h2 className="mt-4 text-xl font-semibold">Tune your alerts</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Choose the updates you want for projects, proposals, Vega, GEO,
+            Echo, requests, and payments.
+          </p>
+        </Link>
       </section>
     </div>
   );
