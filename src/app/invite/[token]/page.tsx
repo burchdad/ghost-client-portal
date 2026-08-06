@@ -15,7 +15,6 @@ export default async function InvitePage({
   if (
     !invitation ||
     invitation.revokedAt ||
-    invitation.acceptedAt ||
     invitation.expiresAt <= new Date()
   ) {
     return (
@@ -25,6 +24,31 @@ export default async function InvitePage({
           <p className="mt-3 text-sm text-muted">
             This invitation may have expired or already been used.
           </p>
+        </section>
+      </main>
+    );
+  }
+
+  if (invitation.acceptedAt) {
+    return (
+      <main className="surface grid min-h-screen place-items-center px-6 py-10">
+        <section className="w-full max-w-lg rounded-lg border border-line bg-panel p-6">
+          <p className="text-sm uppercase tracking-[0.24em] text-accent">
+            Ghost AI Solutions
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold">
+            Workspace access is already active
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            This invitation for {invitation.email} has already been activated.
+            Sign in with the password created during activation.
+          </p>
+          <a
+            href="/login"
+            className="mt-5 inline-flex rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+          >
+            Go to login
+          </a>
         </section>
       </main>
     );
