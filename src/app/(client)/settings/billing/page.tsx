@@ -1,9 +1,9 @@
 import { CreditCard } from "lucide-react";
 import { EmptyWorkspace, PageHero } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 
 export default async function BillingSettingsPage() {
-  const { organization } = await requireOrganizationMembership();
+  const { organization } = await requireClientWorkspace();
 
   return (
     <section className="space-y-6">

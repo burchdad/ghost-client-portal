@@ -1,4 +1,5 @@
-import { CreditCard, ReceiptText } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, ExternalLink, ReceiptText } from "lucide-react";
 import {
   EmptyWorkspace,
   MetricCard,
@@ -6,17 +7,24 @@ import {
   SectionPanel,
   StatusBadge,
 } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 
 export default async function PaymentsPage() {
-  const { organization } = await requireOrganizationMembership();
-  const payments = await getDb().payment.findMany({
-    where: { organizationId: organization.id },
-    include: { project: true, proposal: true, paymentScheduleItem: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const { organization } = await requireClientWorkspace();
+  const [payments, scheduleItems] = await Promise.all([
+    getDb().payment.findMany({
+      where: { organizationId: organization.id },
+      include: { project: true, proposal: true, paymentScheduleItem: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    getDb().paymentScheduleItem.findMany({
+      where: { organizationId: organization.id },
+      include: { project: true, proposal: true },
+      orderBy: [{ sortOrder: "asc" }, { dueOn: "asc" }],
+    }),
+  ]);
   const paidCents = payments
     .filter((payment) => payment.status === "PAID")
     .reduce((total, payment) => total + payment.amountCents, 0);
@@ -51,6 +59,11 @@ export default async function PaymentsPage() {
             value: formatMoney(pendingCents),
             detail: "Open or processing",
           },
+          {
+            label: "Schedule",
+            value: String(scheduleItems.length),
+            detail: "Invoice milestones",
+          },
         ]}
       />
 
@@ -72,6 +85,57 @@ export default async function PaymentsPage() {
           detail="Client account payment context."
         />
       </section>
+
+      {scheduleItems.length ? (
+        <SectionPanel title="Payment schedule" eyebrow="Invoice milestones">
+          <div className="grid gap-3">
+            {scheduleItems.map((item) => (
+              <article
+                key={item.id}
+                className="rounded-md border border-line bg-white/[0.035] p-4"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge
+                        tone={item.status === "PAID" ? "accent" : "warning"}
+                      >
+                        {humanizeEnum(item.status)}
+                      </StatusBadge>
+                      <StatusBadge>
+                        {humanizeEnum(item.paymentType)}
+                      </StatusBadge>
+                    </div>
+                    <h2 className="mt-3 text-xl font-semibold">{item.label}</h2>
+                    {item.description ? (
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        {item.description}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 text-sm text-muted">
+                      {item.project?.name ?? item.proposal.title} - Due{" "}
+                      {formatDate(item.dueOn)}
+                    </p>
+                  </div>
+                  <div className="lg:text-right">
+                    <p className="text-2xl font-semibold">
+                      {formatMoney(item.amountCents, item.currency)}
+                    </p>
+                    {item.status !== "PAID" ? (
+                      <Link
+                        href="/requests?type=billing"
+                        className="mt-3 inline-flex rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                      >
+                        Ask billing
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionPanel>
+      ) : null}
 
       {payments.length ? (
         <SectionPanel title="Payment records" eyebrow="Stripe ledger">
@@ -116,8 +180,24 @@ export default async function PaymentsPage() {
                         ? `Paid ${formatDate(payment.paidAt)}`
                         : `Created ${formatDate(payment.createdAt)}`}
                     </p>
+                    {payment.stripeReceiptUrl ? (
+                      <Link
+                        href={payment.stripeReceiptUrl}
+                        className="mt-3 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                      >
+                        Receipt
+                        <ExternalLink size={14} aria-hidden />
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
+                {payment.recoveryRequired || payment.failureMessage ? (
+                  <p className="mt-4 rounded-md border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+                    {payment.recoveryReason ??
+                      payment.failureMessage ??
+                      "This payment needs review."}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

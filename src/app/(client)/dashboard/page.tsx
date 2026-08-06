@@ -19,12 +19,12 @@ import {
   SectionPanel,
   StatusBadge,
 } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 import { getClientDashboardData } from "@/server/dashboard/service";
 
 export default async function DashboardPage() {
-  const { user, organization } = await requireOrganizationMembership();
+  const { user, organization } = await requireClientWorkspace();
   const data = await getClientDashboardData(organization.id, user.id);
   const firstName = user.name.split(" ")[0] || user.name;
   const activeProject = data.projects[0];

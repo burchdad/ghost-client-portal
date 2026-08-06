@@ -1,11 +1,11 @@
 import { KeyRound, LockKeyhole, ShieldCheck, Smartphone } from "lucide-react";
 import { PageHero, SectionPanel, StatusBadge } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 
 export default async function SecuritySettingsPage() {
-  const { user, organization } = await requireOrganizationMembership();
+  const { user, organization } = await requireClientWorkspace();
   const activeSessions = await getDb().session.count({
     where: { userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } },
   });

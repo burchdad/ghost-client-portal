@@ -8,7 +8,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { PageHero, SectionPanel, StatusBadge } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import {
   getNotificationPreferences,
   notificationPreferenceKeys,
@@ -60,7 +60,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<{ notice?: string }>;
 }) {
-  const { user, organization } = await requireOrganizationMembership();
+  const { user, organization } = await requireClientWorkspace();
   const preferences = await getNotificationPreferences(user.id);
   const notice = (await searchParams)?.notice;
 

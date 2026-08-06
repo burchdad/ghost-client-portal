@@ -1,10 +1,10 @@
 import { Building2, ShieldCheck, UserRound } from "lucide-react";
 import { PageHero, SectionPanel, StatusBadge } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { humanizeEnum } from "@/lib/format";
 
 export default async function OrganizationSettingsPage() {
-  const { organization, membership } = await requireOrganizationMembership();
+  const { organization, membership } = await requireClientWorkspace();
 
   return (
     <section className="space-y-6">

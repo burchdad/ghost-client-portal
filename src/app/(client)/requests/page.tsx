@@ -6,7 +6,7 @@ import {
   SectionPanel,
   StatusBadge,
 } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate, humanizeEnum } from "@/lib/format";
 import { createSupportRequestAction } from "./actions";
@@ -14,10 +14,11 @@ import { createSupportRequestAction } from "./actions";
 export default async function RequestsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string; notice?: string }>;
+  searchParams?: Promise<{ error?: string; notice?: string; type?: string }>;
 }) {
-  const { organization } = await requireOrganizationMembership();
+  const { organization } = await requireClientWorkspace();
   const message = (await searchParams) ?? {};
+  const requestDefaults = getRequestDefaults(message.type);
   const requests = await getDb().supportRequest.findMany({
     where: { organizationId: organization.id },
     include: { updates: { orderBy: { createdAt: "desc" }, take: 1 } },
@@ -98,7 +99,7 @@ export default async function RequestsPage({
                   id="category"
                   name="category"
                   className="w-full rounded-md border border-line bg-background px-3 py-3 text-sm"
-                  defaultValue="GENERAL_QUESTION"
+                  defaultValue={requestDefaults.category}
                 >
                   <option value="GENERAL_QUESTION">General question</option>
                   <option value="MARKETING_REQUEST">Marketing request</option>
@@ -122,7 +123,7 @@ export default async function RequestsPage({
                   id="priority"
                   name="priority"
                   className="w-full rounded-md border border-line bg-background px-3 py-3 text-sm"
-                  defaultValue="NORMAL"
+                  defaultValue={requestDefaults.priority}
                 >
                   <option value="LOW">Low</option>
                   <option value="NORMAL">Normal</option>
@@ -143,6 +144,7 @@ export default async function RequestsPage({
                 name="subject"
                 required
                 maxLength={120}
+                defaultValue={requestDefaults.subject}
                 placeholder="Example: Update homepage service copy"
                 className="w-full rounded-md border border-line bg-background px-3 py-3 text-sm"
               />
@@ -160,6 +162,7 @@ export default async function RequestsPage({
                 required
                 minLength={10}
                 maxLength={2000}
+                defaultValue={requestDefaults.description}
                 placeholder="Add context, links, desired timing, and what a good outcome looks like."
                 className="min-h-36 w-full rounded-md border border-line bg-background px-3 py-3 text-sm leading-6"
               />
@@ -250,4 +253,33 @@ export default async function RequestsPage({
       </SectionPanel>
     </section>
   );
+}
+
+function getRequestDefaults(type?: string) {
+  if (type === "file") {
+    return {
+      category: "GENERAL_QUESTION",
+      priority: "NORMAL",
+      subject: "File or upload request",
+      description:
+        "I need help accessing, uploading, or requesting a workspace file.",
+    };
+  }
+
+  if (type === "billing") {
+    return {
+      category: "BILLING_QUESTION",
+      priority: "NORMAL",
+      subject: "Billing question",
+      description:
+        "I have a question about a payment, invoice, receipt, or billing milestone.",
+    };
+  }
+
+  return {
+    category: "GENERAL_QUESTION",
+    priority: "NORMAL",
+    subject: "",
+    description: "",
+  };
 }

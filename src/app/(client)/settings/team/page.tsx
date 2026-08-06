@@ -1,9 +1,9 @@
 import { UsersRound } from "lucide-react";
 import { EmptyWorkspace, PageHero } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 
 export default async function TeamSettingsPage() {
-  const { organization, membership } = await requireOrganizationMembership();
+  const { organization, membership } = await requireClientWorkspace();
 
   return (
     <section className="space-y-6">

@@ -1,4 +1,5 @@
 import { BellRing } from "lucide-react";
+import Link from "next/link";
 import {
   EmptyWorkspace,
   MetricCard,
@@ -6,14 +7,23 @@ import {
   SectionPanel,
   StatusBadge,
 } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { markNotificationsReadAction } from "./actions";
 
-export default async function NotificationsPage() {
-  const { organization } = await requireOrganizationMembership();
+export default async function NotificationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
+  const message = await searchParams;
+  const { user, organization } = await requireClientWorkspace();
   const notifications = await getDb().notification.findMany({
-    where: { organizationId: organization.id },
+    where: {
+      organizationId: organization.id,
+      OR: [{ userId: null }, { userId: user.id }],
+    },
     orderBy: { createdAt: "desc" },
   });
   const unread = notifications.filter((item) => !item.readAt);
@@ -24,6 +34,15 @@ export default async function NotificationsPage() {
         eyebrow="Notification center"
         title={`Workspace alerts for ${organization.name}`}
         body="Client-safe updates, approvals, payment notices, project activity, and system messages collect here."
+        actions={
+          unread.length ? (
+            <form action={markNotificationsReadAction}>
+              <button className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950">
+                Mark all reviewed
+              </button>
+            </form>
+          ) : null
+        }
         metrics={[
           {
             label: "Unread",
@@ -44,6 +63,12 @@ export default async function NotificationsPage() {
           },
         ]}
       />
+
+      {message.notice ? (
+        <p className="rounded-md border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent">
+          {message.notice}
+        </p>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2">
         <MetricCard
@@ -76,6 +101,14 @@ export default async function NotificationsPage() {
                     <p className="mt-2 text-sm leading-6 text-muted">
                       {item.body}
                     </p>
+                    {item.linkTarget ? (
+                      <Link
+                        href={item.linkTarget}
+                        className="mt-3 inline-flex rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                      >
+                        Open related item
+                      </Link>
+                    ) : null}
                   </div>
                   <p className="text-sm text-muted">
                     {formatDate(item.createdAt)}

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { checkRateLimit } from "@/server/security/rate-limit";
 
@@ -25,7 +25,7 @@ const requestSchema = z.object({
 });
 
 export async function createSupportRequestAction(formData: FormData) {
-  const { user, organization } = await requireOrganizationMembership();
+  const { user, organization } = await requireClientWorkspace();
   const limit = checkRateLimit(`support-request:${user.id}`, {
     limit: 6,
     windowMs: 60_000,

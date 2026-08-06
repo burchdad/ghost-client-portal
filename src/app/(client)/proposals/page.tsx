@@ -7,12 +7,12 @@ import {
   SectionPanel,
   StatusBadge,
 } from "@/components/workspace-ui";
-import { requireOrganizationMembership } from "@/lib/auth/guards";
+import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 
 export default async function ProposalsPage() {
-  const { organization } = await requireOrganizationMembership();
+  const { organization } = await requireClientWorkspace();
   const proposals = await getDb().proposal.findMany({
     where: { organizationId: organization.id, deletedAt: null },
     orderBy: { updatedAt: "desc" },

@@ -27,7 +27,23 @@ export async function getClientProjectWorkspace(
         where: { deletedAt: null, visibility: "CLIENT_VISIBLE" },
         orderBy: { createdAt: "desc" },
       },
-      approvals: { orderBy: { createdAt: "desc" } },
+      deliverables: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          versions: { orderBy: { createdAt: "desc" } },
+          approvals: {
+            orderBy: { createdAt: "desc" },
+            include: { comments: { orderBy: { createdAt: "desc" } } },
+          },
+        },
+      },
+      approvals: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          deliverable: true,
+          comments: { orderBy: { createdAt: "desc" } },
+        },
+      },
     },
   });
 
