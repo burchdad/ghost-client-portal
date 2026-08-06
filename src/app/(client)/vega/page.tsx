@@ -15,9 +15,7 @@ export default async function VegaPage({
   const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
   const message = (await searchParams) ?? {};
-  const sourceAuthIssue = snapshot.queries.some(
-    (query) => query.status === "AUTH_FAILED",
-  );
+  const sourceAuthIssue = snapshot.queries[0]?.status === "AUTH_FAILED";
 
   return (
     <section className="space-y-6">
