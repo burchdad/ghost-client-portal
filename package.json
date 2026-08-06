@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke:production": "node scripts/production-smoke.mjs",
+    "sync:internal-roles": "node scripts/sync-internal-user-roles.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "inspect:production": "node scripts/inspect-production.mjs",
