@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CreditCard, ExternalLink, ReceiptText } from "lucide-react";
+import { ScheduleCheckoutButton } from "@/components/payments/schedule-checkout-button";
 import {
   EmptyWorkspace,
   MetricCard,
@@ -11,7 +12,16 @@ import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    checkout?: string;
+    error?: string;
+    notice?: string;
+  }>;
+}) {
+  const query = (await searchParams) ?? {};
   const { organization } = await requireClientWorkspace();
   const [payments, scheduleItems] = await Promise.all([
     getDb().payment.findMany({
@@ -67,6 +77,29 @@ export default async function PaymentsPage() {
         ]}
       />
 
+      {query.checkout === "success" ? (
+        <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-accent">
+          Stripe checkout returned successfully. Your payment status will update
+          here as soon as Stripe confirms the transaction.
+        </p>
+      ) : null}
+      {query.checkout === "cancelled" ? (
+        <p className="rounded-md border border-amber-300/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Checkout was cancelled. No payment was recorded, and you can safely
+          restart when ready.
+        </p>
+      ) : null}
+      {query.notice === "paid" ? (
+        <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-accent">
+          That payment is already marked paid in the ledger.
+        </p>
+      ) : null}
+      {query.error ? (
+        <p className="rounded-md border border-red-300/40 bg-red-950/30 px-4 py-3 text-sm text-red-100">
+          {query.error}
+        </p>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard
           label="Due or processing"
@@ -94,43 +127,62 @@ export default async function PaymentsPage() {
                 key={item.id}
                 className="rounded-md border border-line bg-white/[0.035] p-4"
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge
-                        tone={item.status === "PAID" ? "accent" : "warning"}
-                      >
-                        {humanizeEnum(item.status)}
-                      </StatusBadge>
-                      <StatusBadge>
-                        {humanizeEnum(item.paymentType)}
-                      </StatusBadge>
+                {(() => {
+                  const canCheckout = !["PAID", "WAIVED"].includes(item.status);
+                  const checkoutLabel =
+                    item.status === "CHECKOUT_CREATED" ||
+                    item.status === "PROCESSING"
+                      ? "Resume checkout"
+                      : "Pay now";
+
+                  return (
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge
+                            tone={item.status === "PAID" ? "accent" : "warning"}
+                          >
+                            {humanizeEnum(item.status)}
+                          </StatusBadge>
+                          <StatusBadge>
+                            {humanizeEnum(item.paymentType)}
+                          </StatusBadge>
+                        </div>
+                        <h2 className="mt-3 text-xl font-semibold">
+                          {item.label}
+                        </h2>
+                        {item.description ? (
+                          <p className="mt-2 text-sm leading-6 text-muted">
+                            {item.description}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 text-sm text-muted">
+                          {item.project?.name ?? item.proposal.title} - Due{" "}
+                          {formatDate(item.dueOn)}
+                        </p>
+                      </div>
+                      <div className="lg:text-right">
+                        <p className="text-2xl font-semibold">
+                          {formatMoney(item.amountCents, item.currency)}
+                        </p>
+                        {canCheckout ? (
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row lg:justify-end">
+                            <ScheduleCheckoutButton
+                              paymentScheduleItemId={item.id}
+                              label={checkoutLabel}
+                            />
+                            <Link
+                              href="/requests?type=billing"
+                              className="inline-flex justify-center rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                            >
+                              Ask billing
+                            </Link>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    <h2 className="mt-3 text-xl font-semibold">{item.label}</h2>
-                    {item.description ? (
-                      <p className="mt-2 text-sm leading-6 text-muted">
-                        {item.description}
-                      </p>
-                    ) : null}
-                    <p className="mt-2 text-sm text-muted">
-                      {item.project?.name ?? item.proposal.title} - Due{" "}
-                      {formatDate(item.dueOn)}
-                    </p>
-                  </div>
-                  <div className="lg:text-right">
-                    <p className="text-2xl font-semibold">
-                      {formatMoney(item.amountCents, item.currency)}
-                    </p>
-                    {item.status !== "PAID" ? (
-                      <Link
-                        href="/requests?type=billing"
-                        className="mt-3 inline-flex rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
-                      >
-                        Ask billing
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
+                  );
+                })()}
               </article>
             ))}
           </div>

@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { hashCanonical } from "@/server/proposals/hashing";
@@ -311,58 +312,71 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent) {
       },
     });
 
-    const depositPaidProposal =
-      payment.proposal.status === "PAYMENT_PENDING"
-        ? await transitionProposalStatus(tx, {
-            proposalId: payment.proposal.id,
-            organizationId: payment.proposal.organizationId,
-            from: "PAYMENT_PENDING",
-            to: "DEPOSIT_PAID",
-            actorLabel: "stripe_webhook",
-          })
-        : payment.proposal;
+    const activationEligible =
+      payment.paymentType === "DEPOSIT" || payment.paymentType === "FULL";
+    let projectActivationStatus = activationEligible
+      ? "activated"
+      : "not_applicable";
 
-    let projectActivationStatus = "activated";
-    try {
-      const project = await activateProjectForDeposit(tx, {
-        proposal: depositPaidProposal ?? payment.proposal,
-        payment: paidPayment,
-      });
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: { projectId: project.id },
-      });
-      await transitionProposalStatus(tx, {
-        proposalId: payment.proposal.id,
-        organizationId: payment.proposal.organizationId,
-        from: "DEPOSIT_PAID",
-        to: "ACTIVE",
-        actorLabel: "stripe_webhook",
-        idempotent: payment.proposal.status === "ACTIVE",
-      });
-    } catch (error) {
-      projectActivationStatus = "recovery_required";
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          recoveryRequired: true,
-          recoveryReason:
-            error instanceof Error
-              ? error.message.slice(0, 240)
-              : "Project activation failed.",
-        },
-      });
-      await tx.notification.create({
-        data: {
-          organizationId: payment.organizationId,
-          type: "payment.activation_recovery_required",
-          title: "Payment confirmed, activation needs recovery",
-          body: payment.proposal.title,
-          linkTarget: `/admin/payments`,
-        },
-      });
-      return;
+    if (activationEligible) {
+      const depositPaidProposal =
+        payment.proposal.status === "PAYMENT_PENDING"
+          ? await transitionProposalStatus(tx, {
+              proposalId: payment.proposal.id,
+              organizationId: payment.proposal.organizationId,
+              from: "PAYMENT_PENDING",
+              to: "DEPOSIT_PAID",
+              actorLabel: "stripe_webhook",
+            })
+          : payment.proposal;
+
+      try {
+        const project = await activateProjectForDeposit(tx, {
+          proposal: depositPaidProposal ?? payment.proposal,
+          payment: paidPayment,
+        });
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { projectId: project.id },
+        });
+        await transitionProposalStatus(tx, {
+          proposalId: payment.proposal.id,
+          organizationId: payment.proposal.organizationId,
+          from: "DEPOSIT_PAID",
+          to: "ACTIVE",
+          actorLabel: "stripe_webhook",
+          idempotent: payment.proposal.status === "ACTIVE",
+        });
+      } catch (error) {
+        projectActivationStatus = "recovery_required";
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            recoveryRequired: true,
+            recoveryReason:
+              error instanceof Error
+                ? error.message.slice(0, 240)
+                : "Project activation failed.",
+          },
+        });
+        await tx.notification.create({
+          data: {
+            organizationId: payment.organizationId,
+            type: "payment.activation_recovery_required",
+            title: "Payment confirmed, activation needs recovery",
+            body: payment.proposal.title,
+            linkTarget: `/admin/payments`,
+          },
+        });
+        return;
+      }
     }
+
+    await refreshProjectPaymentBalance(tx, {
+      projectId: paidPayment.projectId,
+      proposalId: payment.proposal.id,
+      totalCents: payment.proposal.totalCents,
+    });
 
     await Promise.all([
       tx.activityEvent.create({
@@ -378,7 +392,9 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent) {
           organizationId: payment.organizationId,
           type: "payment.received",
           title: "Payment received",
-          body: "Your deposit payment was received and your project onboarding is ready.",
+          body: activationEligible
+            ? "Your payment was received and your project onboarding is ready."
+            : "Your payment was received and your balance has been updated.",
           linkTarget: `/projects`,
         },
       }),
@@ -439,6 +455,42 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent) {
       idempotencyKey: `email:internal-payment:${payment.id}`,
       ...internalEmail,
     });
+  });
+}
+
+async function refreshProjectPaymentBalance(
+  tx: Prisma.TransactionClient,
+  input: {
+    projectId: string | null;
+    proposalId: string;
+    totalCents: number;
+  },
+) {
+  const project = input.projectId
+    ? await tx.project.findUnique({ where: { id: input.projectId } })
+    : await tx.project.findFirst({
+        where: { proposalId: input.proposalId, deletedAt: null },
+      });
+
+  if (!project) {
+    return;
+  }
+
+  const paid = await tx.payment.aggregate({
+    where: {
+      projectId: project.id,
+      status: "PAID",
+    },
+    _sum: { amountCents: true },
+  });
+  const amountPaidCents = paid._sum.amountCents ?? 0;
+
+  await tx.project.update({
+    where: { id: project.id },
+    data: {
+      amountPaidCents,
+      remainingBalanceCents: Math.max(input.totalCents - amountPaidCents, 0),
+    },
   });
 }
 
