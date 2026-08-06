@@ -3,6 +3,7 @@ import { isClientSafeActivity } from "@/server/activity/client-safe";
 import { calculateProjectProgress } from "@/server/projects/progress";
 import { getDb } from "@/lib/db";
 import {
+  inferRequestedLeadCount,
   LeadCommandAuthError,
   searchLeadCommandLeads,
 } from "./lead-command-client";
@@ -44,6 +45,11 @@ type VegaLeadRecord = {
   stage: string;
   intentScore: number;
   emailStatus: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  source: string;
+  notes: string | null;
   nextStep: string;
 };
 
@@ -96,6 +102,10 @@ export type VegaSnapshot = {
     prompt: string;
     status: string;
     resultCount: number;
+    requestedCount: number;
+    fulfillmentRate: number;
+    source: string;
+    guidance: string;
     createdAt: Date;
   }[];
   engagement: {
@@ -166,6 +176,11 @@ export async function getClientVegaData(organizationId: string) {
         stage: lead.status,
         intentScore: lead.intentScore,
         emailStatus: lead.email ? "Ready for outreach" : "Needs enrichment",
+        email: lead.email,
+        phone: lead.phone,
+        website: lead.website,
+        source: lead.source,
+        notes: lead.notes,
         nextStep: lead.nextStep ?? "Review lead before outreach.",
       })),
       queries: queries.map((query) => ({
@@ -173,6 +188,17 @@ export async function getClientVegaData(organizationId: string) {
         prompt: query.prompt,
         status: query.status,
         resultCount: query.resultCount,
+        requestedCount: inferRequestedLeadCount(query.prompt),
+        fulfillmentRate: fulfillmentRate(
+          query.resultCount,
+          inferRequestedLeadCount(query.prompt),
+        ),
+        source: query.source,
+        guidance: queryGuidance({
+          status: query.status,
+          resultCount: query.resultCount,
+          requestedCount: inferRequestedLeadCount(query.prompt),
+        }),
         createdAt: query.createdAt,
       })),
       useGeneratedLeadFallback: false,
@@ -527,6 +553,11 @@ function buildLeadRecords(
         intentScore: lead.intentScore,
         emailStatus:
           lead.intentScore >= 80 ? "Ready for outreach" : "Needs enrichment",
+        email: null,
+        phone: null,
+        website: null,
+        source: lead.source,
+        notes: null,
         nextStep: lead.nextStep,
       }))
     : [
@@ -539,10 +570,44 @@ function buildLeadRecords(
           stage: "Needs source",
           intentScore: 0,
           emailStatus: "Not ready",
+          email: null,
+          phone: null,
+          website: null,
+          source: "Vega setup",
+          notes: null,
           nextStep:
             "Connect a lead source or run a Vega query to populate this workspace.",
         },
       ];
+}
+
+function fulfillmentRate(resultCount: number, requestedCount: number) {
+  if (!requestedCount) return 0;
+  return Math.round((resultCount / requestedCount) * 100);
+}
+
+function queryGuidance(input: {
+  status: string;
+  resultCount: number;
+  requestedCount: number;
+}) {
+  if (input.status === "AUTH_FAILED") {
+    return "Lead Command authorization needs attention before live sourcing can continue.";
+  }
+
+  if (input.status === "FAILED") {
+    return "Lead Command could not complete this source request. Try again or broaden the audience.";
+  }
+
+  if (input.resultCount === 0) {
+    return "No qualified prospects matched. Broaden the geography, buyer role, or industry terms.";
+  }
+
+  if (input.resultCount < input.requestedCount) {
+    return "Vega returned the qualified matches it could verify. Broaden the search to find more volume.";
+  }
+
+  return "Lead Command returned a full qualified set for this request.";
 }
 
 function buildLeadLists(

@@ -1,3 +1,5 @@
+import { ClipboardList } from "lucide-react";
+import { EmptyWorkspace, PageHero } from "@/components/workspace-ui";
 import { requireOrganizationMembership } from "@/lib/auth/guards";
 
 export default async function RequestsPage() {
@@ -5,21 +7,26 @@ export default async function RequestsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="panel-surface rounded-lg border border-line p-6">
-        <p className="text-sm uppercase tracking-[0.24em] text-accent">
-          Requests
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold">
-          Open requests for {organization.name}
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm text-muted">
-          Service requests, support follow-ups, and client-side asks will appear
-          here when they are attached to the workspace.
-        </p>
-      </div>
-      <div className="rounded-lg border border-dashed border-line bg-panel p-6 text-sm text-muted">
-        No requests are currently open.
-      </div>
+      <PageHero
+        eyebrow="Request desk"
+        title={`Open requests for ${organization.name}`}
+        body="Service requests, support follow-ups, project asks, and client-side decisions will appear here when they are attached to the workspace."
+        metrics={[
+          { label: "Open", value: "0", detail: "Active requests" },
+          { label: "Blocked", value: "0", detail: "Waiting on input" },
+          { label: "Routing", value: "Ghost", detail: "Workspace team" },
+        ]}
+      />
+      <EmptyWorkspace
+        icon={ClipboardList}
+        title="No requests are currently open"
+        body="Requests will give clients a direct place to track asks without losing context in email or chat threads."
+        steps={[
+          "A request is opened",
+          "Ghost routes the owner",
+          "Status and follow-up stay visible",
+        ]}
+      />
     </section>
   );
 }

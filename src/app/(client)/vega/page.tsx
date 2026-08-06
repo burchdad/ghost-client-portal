@@ -1,4 +1,22 @@
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  Mail,
+  Phone,
+  Search,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  EmptyWorkspace,
+  MetricCard,
+  PageHero,
+  SectionPanel,
+  StatusBadge,
+} from "@/components/workspace-ui";
 import { requireClientWorkspace } from "@/lib/auth/guards";
+import { formatDate, humanizeEnum } from "@/lib/format";
 import { getClientVegaData } from "@/server/vega/service";
 import {
   createVegaLeadQueryAction,
@@ -15,56 +33,94 @@ export default async function VegaPage({
   const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
   const message = (await searchParams) ?? {};
-  const sourceAuthIssue = snapshot.queries[0]?.status === "AUTH_FAILED";
+  const latestQuery = snapshot.queries[0];
+  const sourceAuthIssue = latestQuery?.status === "AUTH_FAILED";
+  const readyLeads = snapshot.leadRecords.filter((lead) =>
+    ["READY_FOR_OUTREACH", "QUALIFIED", "ENGAGED"].includes(lead.stage),
+  );
+  const emailReadyLeads = snapshot.leadRecords.filter((lead) =>
+    lead.emailStatus.toLowerCase().includes("ready"),
+  );
+  const averageIntent = snapshot.leadRecords.length
+    ? Math.round(
+        snapshot.leadRecords.reduce(
+          (total, lead) => total + lead.intentScore,
+          0,
+        ) / snapshot.leadRecords.length,
+      )
+    : 0;
 
   return (
     <section className="space-y-6">
-      <div className="panel-surface rounded-lg border border-line p-6">
-        <p className="text-sm uppercase tracking-[0.24em] text-accent">Vega</p>
-        <div className="mt-3 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold">
-              LeadGen console for {organization.name}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm text-muted">
-              Query prospects, pull lead lists, review qualified records, and
-              prepare outreach sequences from your Ghost AI client workspace.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Metric label="Prospects" value={snapshot.leadRecords.length} />
-            <Metric label="Lists" value={snapshot.leadLists.length} />
-            <Metric
-              label="Outreach"
-              value={snapshot.outreachSequences.length}
-            />
-          </div>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="Vega Lead Command"
+        title={`LeadGen workspace for ${organization.name}`}
+        body="Ask Vega for a market, review sourced prospects, build lists, and move qualified companies into outreach from one client-safe workspace."
+        metrics={[
+          {
+            label: "Prospects",
+            value: String(snapshot.leadRecords.length),
+            detail: "Stored in this workspace",
+          },
+          {
+            label: "Outreach ready",
+            value: String(emailReadyLeads.length),
+            detail: "Have a contact path",
+          },
+          {
+            label: "Avg intent",
+            value: String(averageIntent),
+            detail: "Fit and readiness score",
+          },
+        ]}
+      />
+
+      <section className="grid gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Qualified leads"
+          value={String(readyLeads.length)}
+          detail="Prospects ready for list, enrichment, or outreach review."
+          tone="accent"
+        />
+        <MetricCard
+          label="Saved lists"
+          value={String(snapshot.leadLists.length)}
+          detail="Segments Vega can use for campaigns and follow-up."
+        />
+        <MetricCard
+          label="Recent requests"
+          value={String(snapshot.queries.length)}
+          detail="Lead pulls submitted from this client workspace."
+        />
+        <MetricCard
+          label="Latest fulfillment"
+          value={latestQuery ? `${latestQuery.fulfillmentRate}%` : "0%"}
+          detail={
+            latestQuery
+              ? `${latestQuery.resultCount} of ${latestQuery.requestedCount} requested`
+              : "No live query has been submitted yet."
+          }
+          tone={latestQuery?.fulfillmentRate === 100 ? "accent" : "warning"}
+        />
+      </section>
 
       <form
         action={createVegaLeadQueryAction}
         className="rounded-lg border border-line bg-panel p-5"
       >
         {sourceAuthIssue && !message.error ? (
-          <p className="mb-4 rounded-md border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <Alert tone="warning">
             Lead Command needs a valid production access key before Vega can
             pull live prospect data.
-          </p>
+          </Alert>
         ) : null}
         {message.error || message.notice ? (
-          <p
-            className={`mb-4 rounded-md border px-4 py-3 text-sm ${
-              message.error
-                ? "border-red-400/40 bg-red-500/10 text-red-100"
-                : "border-accent/40 bg-accent/10 text-accent"
-            }`}
-          >
+          <Alert tone={message.error ? "danger" : "success"}>
             {message.error ?? message.notice}
-          </p>
+          </Alert>
         ) : null}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-          <div className="flex-1">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
             <label
               className="text-sm font-medium text-muted"
               htmlFor="vega-lead-query"
@@ -74,177 +130,289 @@ export default async function VegaPage({
             <textarea
               id="vega-lead-query"
               name="prompt"
-              className="mt-2 min-h-24 w-full rounded-md border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+              className="mt-2 min-h-28 w-full rounded-md border border-line bg-background px-4 py-3 text-sm leading-6 outline-none focus:border-accent"
               defaultValue={snapshot.queryPresets[0]?.query}
-              placeholder="Ask Vega to pull a lead list. Include audience, industry, location, buyer role, and outreach goal."
+              placeholder="Example: Pull 10 HVAC companies in Houston, Texas that need a stronger website and have owner contact paths."
             />
           </div>
           <button
             type="submit"
-            className="rounded-md bg-accent px-5 py-3 text-sm font-semibold text-slate-950"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-slate-950"
           >
+            <Send size={16} aria-hidden />
             Send Request
           </button>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 grid gap-2 md:grid-cols-3">
           {snapshot.queryPresets.map((preset) => (
-            <span
+            <div
               key={preset.label}
               className="rounded-md border border-line bg-white/[0.035] px-3 py-2 text-xs text-muted"
             >
-              {preset.label}: {preset.query}
-            </span>
+              <p className="font-medium text-foreground">{preset.label}</p>
+              <p className="mt-1">{preset.query}</p>
+            </div>
           ))}
         </div>
       </form>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_0.75fr]">
-        <div className="rounded-lg border border-line bg-panel">
-          <div className="border-b border-line p-5">
-            <h2 className="text-xl font-semibold">Lead records</h2>
-            <p className="mt-2 text-sm text-muted">
-              Qualified prospects and next steps available to this client.
-            </p>
-          </div>
-          <div className="divide-y divide-line">
-            {snapshot.leadRecords.length ? (
-              snapshot.leadRecords.map((lead) => (
-                <div key={`${lead.company}-${lead.contact}`} className="p-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-sm text-accent">{lead.segment}</p>
-                      <h3 className="mt-1 text-xl font-semibold">
-                        {lead.company}
-                      </h3>
-                      <p className="mt-2 text-sm text-muted">
-                        {lead.contact} - {lead.title}
-                      </p>
-                      <p className="mt-3 text-sm text-muted">{lead.nextStep}</p>
-                    </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-80">
-                      <Mini label="Stage" value={lead.stage} />
-                      <Mini label="Intent" value={String(lead.intentScore)} />
-                      <Mini label="Email" value={lead.emailStatus} />
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <LeadStatusButton
-                      leadId={lead.id}
-                      status="QUALIFIED"
-                      label="Add to List"
-                    />
-                    <LeadStatusButton
-                      leadId={lead.id}
-                      status="READY_FOR_OUTREACH"
-                      label="Draft Outreach"
-                    />
-                    <LeadStatusButton
-                      leadId={lead.id}
-                      status="ENGAGED"
-                      label="Mark Engaged"
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="p-5 text-sm text-muted">
-                No Vega leads have been pulled for this workspace yet. Send a
-                request above and Vega will populate this list.
+      {latestQuery ? (
+        <section className="rounded-lg border border-line bg-panel p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm text-accent">Latest source report</p>
+              <h2 className="mt-1 text-xl font-semibold">
+                Requested {latestQuery.requestedCount}, returned{" "}
+                {latestQuery.resultCount}
+              </h2>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-muted">
+                {latestQuery.guidance}
               </p>
-            )}
+            </div>
+            <StatusBadge
+              tone={
+                latestQuery.status === "COMPLETED"
+                  ? "accent"
+                  : latestQuery.status === "AUTH_FAILED"
+                    ? "warning"
+                    : "danger"
+              }
+            >
+              {humanizeEnum(latestQuery.status)}
+            </StatusBadge>
           </div>
-        </div>
+        </section>
+      ) : null}
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_0.62fr]">
+        <SectionPanel
+          title="Lead pipeline"
+          eyebrow="Qualified prospects"
+          aside={
+            <StatusBadge tone="accent">{readyLeads.length} active</StatusBadge>
+          }
+        >
+          {snapshot.leadRecords.length ? (
+            <div className="grid gap-4">
+              {snapshot.leadRecords.map((lead) => (
+                <LeadCard key={lead.id} lead={lead} />
+              ))}
+            </div>
+          ) : (
+            <EmptyWorkspace
+              icon={Search}
+              title="No sourced leads yet"
+              body="Send Vega a lead request with a clear industry, geography, buyer role, and outreach goal. Qualified records will populate here."
+              steps={[
+                "Ask for a specific market",
+                "Review contact confidence",
+                "Move qualified leads to outreach",
+              ]}
+            />
+          )}
+        </SectionPanel>
 
         <div className="space-y-5">
-          <Panel title="Recent Vega requests">
-            {snapshot.queries.length ? (
-              snapshot.queries.map((query) => (
-                <div key={query.id} className="rounded-md bg-white/[0.04] p-4">
-                  <p className="font-semibold">{query.prompt}</p>
+          <SectionPanel title="Recent requests" eyebrow="Vega history">
+            <div className="space-y-3">
+              {snapshot.queries.length ? (
+                snapshot.queries.map((query) => (
+                  <div
+                    key={query.id}
+                    className="rounded-md bg-white/[0.04] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold">{query.prompt}</p>
+                      <StatusBadge
+                        tone={
+                          query.status === "COMPLETED" ? "accent" : "warning"
+                        }
+                      >
+                        {query.resultCount}/{query.requestedCount}
+                      </StatusBadge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted">
+                      {humanizeEnum(query.status)} via {query.source}
+                    </p>
+                    <p className="mt-2 text-xs text-muted">
+                      {formatDate(query.createdAt)}
+                    </p>
+                    <p className="mt-3 text-sm text-muted">{query.guidance}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
+                  Requests you send to Vega will appear here.
+                </p>
+              )}
+            </div>
+          </SectionPanel>
+
+          <SectionPanel title="Lead lists" eyebrow="Segments">
+            <div className="space-y-3">
+              {snapshot.leadLists.map((list) => (
+                <div key={list.name} className="rounded-md bg-white/[0.04] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold">{list.name}</p>
+                      <p className="mt-1 text-sm text-muted">{list.source}</p>
+                    </div>
+                    <p className="text-2xl font-semibold">{list.count}</p>
+                  </div>
+                  <p className="mt-3 text-sm text-accent">{list.status}</p>
+                </div>
+              ))}
+            </div>
+          </SectionPanel>
+
+          <SectionPanel title="Outreach queue" eyebrow="Echo handoff">
+            <div className="space-y-3">
+              {snapshot.outreachSequences.map((sequence) => (
+                <div
+                  key={sequence.name}
+                  className="rounded-md border border-line bg-white/[0.035] p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold">{sequence.name}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {sequence.audience}
+                      </p>
+                    </div>
+                    <StatusBadge>{sequence.steps} steps</StatusBadge>
+                  </div>
+                  <p className="mt-3 text-sm text-accent">{sequence.status}</p>
                   <p className="mt-2 text-sm text-muted">
-                    {query.status} - {query.resultCount} leads
+                    {sequence.nextAction}
                   </p>
                 </div>
-              ))
-            ) : (
-              <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
-                Requests you send to Vega will appear here.
-              </p>
-            )}
-          </Panel>
-
-          <Panel title="Lead lists">
-            {snapshot.leadLists.map((list) => (
-              <div key={list.name} className="rounded-md bg-white/[0.04] p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold">{list.name}</p>
-                    <p className="mt-1 text-sm text-muted">{list.source}</p>
-                  </div>
-                  <p className="text-2xl font-semibold">{list.count}</p>
-                </div>
-                <p className="mt-3 text-sm text-accent">{list.status}</p>
-              </div>
-            ))}
-          </Panel>
-
-          <Panel title="Email outreach">
-            {snapshot.outreachSequences.map((sequence) => (
-              <div
-                key={sequence.name}
-                className="rounded-md border border-line bg-white/[0.035] p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold">{sequence.name}</p>
-                    <p className="mt-1 text-sm text-muted">
-                      {sequence.audience}
-                    </p>
-                  </div>
-                  <span className="rounded-md border border-line px-2 py-1 text-xs text-muted">
-                    {sequence.steps} steps
-                  </span>
-                </div>
-                <p className="mt-3 text-sm text-accent">{sequence.status}</p>
-                <p className="mt-2 text-sm text-muted">{sequence.nextAction}</p>
-              </div>
-            ))}
-          </Panel>
+              ))}
+            </div>
+          </SectionPanel>
         </div>
       </section>
     </section>
   );
 }
 
-function Panel({
-  title,
-  children,
+function LeadCard({
+  lead,
 }: {
-  title: string;
-  children: React.ReactNode;
+  lead: {
+    id: string;
+    company: string;
+    contact: string;
+    title: string;
+    segment: string;
+    stage: string;
+    intentScore: number;
+    emailStatus: string;
+    email: string | null;
+    phone: string | null;
+    website: string | null;
+    source: string;
+    notes: string | null;
+    nextStep: string;
+  };
+}) {
+  const hasEmail = Boolean(lead.email);
+  const hasPhone = Boolean(lead.phone);
+  const hasWebsite = Boolean(lead.website);
+
+  return (
+    <article className="rounded-lg border border-line bg-white/[0.035] p-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
+        <div>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge tone="accent">{lead.segment}</StatusBadge>
+            <StatusBadge>{humanizeEnum(lead.stage)}</StatusBadge>
+            <StatusBadge tone={lead.intentScore >= 80 ? "accent" : "default"}>
+              Intent {lead.intentScore}
+            </StatusBadge>
+          </div>
+          <h3 className="mt-3 text-2xl font-semibold">{lead.company}</h3>
+          <p className="mt-2 text-sm text-muted">
+            {lead.contact} - {lead.title}
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
+            {lead.nextStep}
+          </p>
+          {lead.notes ? (
+            <p className="mt-3 rounded-md border border-line bg-black/10 p-3 text-xs leading-5 text-muted">
+              {lead.notes.split("\n").slice(0, 2).join(" ")}
+            </p>
+          ) : null}
+        </div>
+        <div className="grid gap-2 text-sm">
+          <ContactSignal
+            icon={Mail}
+            label="Email"
+            value={hasEmail ? "Verified path" : lead.emailStatus}
+            active={hasEmail}
+          />
+          <ContactSignal
+            icon={Phone}
+            label="Phone"
+            value={hasPhone ? "Callable" : "Needs enrichment"}
+            active={hasPhone}
+          />
+          <ContactSignal
+            icon={ArrowUpRight}
+            label="Website"
+            value={hasWebsite ? "Site found" : "Not found"}
+            active={hasWebsite}
+          />
+          <ContactSignal
+            icon={ShieldCheck}
+            label="Source"
+            value={lead.source.replaceAll("_", " ")}
+            active
+          />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <LeadStatusButton
+          leadId={lead.id}
+          status="QUALIFIED"
+          label="Save to List"
+        />
+        <LeadStatusButton
+          leadId={lead.id}
+          status="READY_FOR_OUTREACH"
+          label="Draft Outreach"
+        />
+        <LeadStatusButton
+          leadId={lead.id}
+          status="ENGAGED"
+          label="Mark Engaged"
+        />
+      </div>
+    </article>
+  );
+}
+
+function ContactSignal({
+  icon: Icon,
+  label,
+  value,
+  active,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  active: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-panel p-5">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="mt-4 space-y-3">{children}</div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-line bg-black/10 px-4 py-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-line bg-black/10 p-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
+    <div className="flex items-start gap-3 rounded-md border border-line bg-black/10 p-3">
+      <Icon
+        size={16}
+        className={active ? "mt-0.5 text-accent" : "mt-0.5 text-muted"}
+        aria-hidden
+      />
+      <div>
+        <p className="text-xs text-muted">{label}</p>
+        <p className="mt-1 font-medium">{value}</p>
+      </div>
     </div>
   );
 }
@@ -262,9 +430,31 @@ function LeadStatusButton({
     <form action={updateVegaLeadStatusAction}>
       <input type="hidden" name="leadId" value={leadId} />
       <input type="hidden" name="status" value={status} />
-      <button className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent">
+      <button className="rounded-md border border-line px-3 py-2 text-sm transition hover:border-accent hover:text-accent">
         {label}
       </button>
     </form>
+  );
+}
+
+function Alert({
+  tone,
+  children,
+}: {
+  tone: "success" | "warning" | "danger";
+  children: React.ReactNode;
+}) {
+  const className =
+    tone === "success"
+      ? "border-accent/40 bg-accent/10 text-accent"
+      : tone === "warning"
+        ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
+        : "border-red-400/40 bg-red-500/10 text-red-100";
+
+  return (
+    <p className={`mb-4 rounded-md border px-4 py-3 text-sm ${className}`}>
+      <CheckCircle2 size={16} className="mr-2 inline" aria-hidden />
+      {children}
+    </p>
   );
 }

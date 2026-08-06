@@ -1,5 +1,22 @@
 import Link from "next/link";
-import { StatusCard } from "@/components/status-card";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Compass,
+  FolderKanban,
+  Megaphone,
+  Sparkles,
+  WalletCards,
+} from "lucide-react";
+import {
+  EmptyWorkspace,
+  MetricCard,
+  PageHero,
+  ProgressBar,
+  SectionPanel,
+  StatusBadge,
+} from "@/components/workspace-ui";
 import { requireOrganizationMembership } from "@/lib/auth/guards";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 import { getClientDashboardData } from "@/server/dashboard/service";
@@ -9,72 +26,94 @@ export default async function DashboardPage() {
   const data = await getClientDashboardData(organization.id, user.id);
   const firstName = user.name.split(" ")[0] || user.name;
   const activeProject = data.projects[0];
+  const hasWork =
+    data.summary.activeProjects > 0 ||
+    data.summary.openActions > 0 ||
+    data.safeActivity.length > 0;
 
   return (
     <div className="space-y-8">
-      <section className="panel-surface rounded-lg border border-line p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="text-sm text-accent">Welcome back, {firstName}</p>
-            <h1 className="mt-2 text-3xl font-semibold">{organization.name}</h1>
-            <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-3">
-              <p>Account status: {humanizeEnum(organization.accountStatus)}</p>
-              <p>
-                Ghost account lead:{" "}
-                {activeProject?.projectOwner?.name ?? "Being assigned"}
-              </p>
-              <p>
-                Notifications:{" "}
-                {data.unreadNotificationCount
-                  ? `${data.unreadNotificationCount} unread`
-                  : "None unread"}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/projects"
-            className="rounded-md border border-line px-4 py-3 text-center text-sm"
-          >
-            View Projects
-          </Link>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Workspace command"
+        title={`${organization.name} growth cockpit`}
+        body={
+          hasWork
+            ? `Welcome back, ${firstName}. Your workspace is active across client work, lead generation, visibility, and campaign planning.`
+            : `Welcome back, ${firstName}. Your workspace is ready; Ghost will publish projects, proposals, payments, and operating signals here as they activate.`
+        }
+        actions={
+          <>
+            <Link
+              href="/vega"
+              className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+            >
+              Open Vega
+              <ArrowRight size={16} aria-hidden />
+            </Link>
+            <Link
+              href="/projects"
+              className="inline-flex items-center gap-2 rounded-md border border-line px-4 py-3 text-sm hover:border-accent"
+            >
+              View projects
+            </Link>
+          </>
+        }
+        metrics={[
+          {
+            label: "Status",
+            value: humanizeEnum(organization.accountStatus),
+            detail: "Client workspace",
+          },
+          {
+            label: "Lead",
+            value: activeProject?.projectOwner?.name ?? "Pending",
+            detail: "Ghost account owner",
+          },
+          {
+            label: "Unread",
+            value: String(data.unreadNotificationCount),
+            detail: "Notifications",
+          },
+        ]}
+      />
 
       <section className="grid gap-4 md:grid-cols-5">
-        <StatusCard
+        <MetricCard
           label="Active projects"
           value={String(data.summary.activeProjects)}
-          detail="Ghost is working on"
+          detail="Client-visible workspaces"
+          tone="accent"
         />
-        <StatusCard
+        <MetricCard
           label="Open actions"
           value={String(data.summary.openActions)}
-          detail="Needs attention"
+          detail="Items waiting on a client or Ghost decision"
         />
-        <StatusCard
+        <MetricCard
           label="Awaiting approval"
           value={String(data.summary.awaitingApproval)}
-          detail="Client decisions"
+          detail="Decision checkpoints"
         />
-        <StatusCard
+        <MetricCard
           label="Paid"
           value={formatMoney(data.summary.paidCents)}
           detail="Recorded payments"
         />
-        <StatusCard
-          label="Remaining"
-          value={formatMoney(data.summary.remainingCents)}
-          detail="Balance after payments"
+        <MetricCard
+          label="Due now"
+          value={formatMoney(data.summary.amountDueCents)}
+          detail="Open payment obligations"
+          tone={data.summary.amountDueCents ? "warning" : "default"}
         />
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[1fr_0.8fr]">
-        <div className="rounded-lg border border-line bg-panel p-5">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-semibold">Action required</h2>
-            <span className="text-sm text-muted">Sorted by urgency</span>
-          </div>
-          <div className="mt-4 space-y-3">
+      <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <SectionPanel
+          title="Next best action"
+          eyebrow="Priority queue"
+          aside={<span className="text-sm text-muted">Sorted by urgency</span>}
+        >
+          <div className="space-y-3">
             {data.actions.length ? (
               data.actions.map((action) => (
                 <div
@@ -83,46 +122,148 @@ export default async function DashboardPage() {
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="font-semibold">{action.title}</p>
+                      <StatusBadge
+                        tone={
+                          action.priority === "HIGH" ? "warning" : "default"
+                        }
+                      >
+                        {humanizeEnum(action.priority)}
+                      </StatusBadge>
+                      <p className="mt-3 font-semibold">{action.title}</p>
                       <p className="mt-1 text-sm text-muted">
                         {action.project.name}
                       </p>
-                      <p className="mt-2 text-sm text-muted">
+                      <p className="mt-2 text-sm leading-6 text-muted">
                         {action.description}
                       </p>
                     </div>
-                    <div className="text-sm text-muted sm:text-right">
-                      <p>{humanizeEnum(action.priority)}</p>
-                      <p>{formatDate(action.dueAt)}</p>
-                    </div>
+                    <p className="text-sm text-muted sm:text-right">
+                      {formatDate(action.dueAt)}
+                    </p>
                   </div>
                   <Link
                     href={`/projects/${action.projectId}#actions`}
-                    className="mt-4 inline-flex rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
                   >
-                    Open Action
+                    Open action
+                    <ArrowRight size={16} aria-hidden />
                   </Link>
                 </div>
               ))
             ) : (
-              <p className="rounded-md border border-dashed border-line p-5 text-sm text-muted">
-                No actions are waiting on you right now.
-              </p>
+              <EmptyWorkspace
+                icon={CheckCircle2}
+                title="No action is waiting on you"
+                body="The client queue is clear. Ghost will surface approvals, questionnaires, payment reviews, and launch decisions here when they need attention."
+                steps={[
+                  "Workspace monitored",
+                  "Notifications enabled",
+                  "Next action will appear here",
+                ]}
+              />
             )}
           </div>
-        </div>
+        </SectionPanel>
 
-        <div className="rounded-lg border border-line bg-panel p-5">
-          <h2 className="text-xl font-semibold">Recent activity</h2>
-          <div className="mt-4 space-y-3">
+        <SectionPanel title="Operating modules" eyebrow="Ghost AI system">
+          <div className="grid gap-3 md:grid-cols-2">
+            <ModuleCard
+              icon={Sparkles}
+              title="Vega"
+              href="/vega"
+              body="Lead sourcing, lists, enrichment, and outreach readiness."
+              status="Live"
+            />
+            <ModuleCard
+              icon={Compass}
+              title="GEO"
+              href="/geo"
+              body="SEO, AEO, GEO positioning, competitors, and visibility gaps."
+              status="Tracking"
+            />
+            <ModuleCard
+              icon={Megaphone}
+              title="Echo"
+              href="/echo"
+              body="Marketing tactics, campaign moves, and content plays."
+              status="Planning"
+            />
+            <ModuleCard
+              icon={WalletCards}
+              title="Payments"
+              href="/payments"
+              body="Balances, checkout state, history, and billing readiness."
+              status={data.summary.amountDueCents ? "Due" : "Clear"}
+            />
+          </div>
+        </SectionPanel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
+        {activeProject ? (
+          <SectionPanel
+            title={activeProject.name}
+            eyebrow={activeProject.serviceCategory}
+            aside={
+              <Link
+                href={`/projects/${activeProject.id}`}
+                className="rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
+              >
+                Open workspace
+              </Link>
+            }
+          >
+            <p className="text-sm leading-6 text-muted">
+              {activeProject.clientVisibleSummary}
+            </p>
+            <div className="mt-5">
+              <div className="mb-2 flex justify-between text-sm">
+                <span className="text-muted">Progress</span>
+                <span>{activeProject.calculatedProgress}%</span>
+              </div>
+              <ProgressBar value={activeProject.calculatedProgress} />
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <Mini label="Phase" value={activeProject.currentPhase} />
+              <Mini
+                label="Milestone"
+                value={activeProject.nextMilestone?.name ?? "To be scheduled"}
+              />
+              <Mini
+                label="Open actions"
+                value={String(activeProject.openActionCount)}
+              />
+              <Mini
+                label="Remaining"
+                value={formatMoney(activeProject.remainingCents)}
+              />
+            </div>
+          </SectionPanel>
+        ) : (
+          <EmptyWorkspace
+            icon={FolderKanban}
+            title="No active project is visible yet"
+            body="When Ghost activates the first engagement, the project workspace will show phases, milestones, files, requests, actions, and delivery progress."
+            steps={[
+              "Proposal or kickoff starts the workspace",
+              "Milestones publish here",
+              "Client actions stay organized",
+            ]}
+          />
+        )}
+
+        <SectionPanel title="Recent activity" eyebrow="Client-safe log">
+          <div className="space-y-3">
             {data.safeActivity.length ? (
               data.safeActivity.map((item) => (
-                <div key={item.id} className="rounded-md bg-white/[0.04] p-3">
-                  <p className="text-sm font-medium">{item.title}</p>
+                <div key={item.id} className="rounded-md bg-white/[0.04] p-4">
+                  <p className="font-semibold">{item.title}</p>
                   {item.body ? (
-                    <p className="mt-1 text-sm text-muted">{item.body}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      {item.body}
+                    </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-2 text-xs text-muted">
                     {formatDate(item.createdAt)}
                   </p>
                 </div>
@@ -134,60 +275,48 @@ export default async function DashboardPage() {
               </p>
             )}
           </div>
-        </div>
+        </SectionPanel>
       </section>
-
-      {activeProject ? (
-        <section className="rounded-lg border border-line bg-panel p-5">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-sm text-accent">
-                {activeProject.serviceCategory}
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold">
-                {activeProject.name}
-              </h2>
-              <p className="mt-3 max-w-3xl text-sm text-muted">
-                {activeProject.clientVisibleSummary}
-              </p>
-            </div>
-            <Link
-              href={`/projects/${activeProject.id}`}
-              className="rounded-md bg-accent px-4 py-3 text-center text-sm font-semibold text-slate-950"
-            >
-              Open Workspace
-            </Link>
-          </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-4">
-            <Mini label="Current phase" value={activeProject.currentPhase} />
-            <Mini
-              label="Progress"
-              value={`${activeProject.calculatedProgress}%`}
-            />
-            <Mini
-              label="Next milestone"
-              value={activeProject.nextMilestone?.name ?? "To be scheduled"}
-            />
-            <Mini
-              label="Open actions"
-              value={String(activeProject.openActionCount)}
-            />
-          </div>
-        </section>
-      ) : (
-        <section className="rounded-lg border border-dashed border-line p-6 text-sm text-muted">
-          No active projects yet. When Ghost activates your first engagement,
-          the project workspace will appear here.
-        </section>
-      )}
     </div>
+  );
+}
+
+function ModuleCard({
+  icon: Icon,
+  title,
+  body,
+  href,
+  status,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+  href: string;
+  status: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-md border border-line bg-black/10 p-4 transition hover:border-accent hover:bg-white/[0.04]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="rounded-md border border-accent/30 bg-accent/10 p-2 text-accent">
+          <Icon size={18} aria-hidden />
+        </div>
+        <StatusBadge tone={status === "Due" ? "warning" : "accent"}>
+          {status}
+        </StatusBadge>
+      </div>
+      <h3 className="mt-4 text-lg font-semibold">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-muted">{body}</p>
+    </Link>
   );
 }
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-line bg-black/10 p-4">
-      <p className="text-sm text-muted">{label}</p>
+      <p className="text-xs text-muted">{label}</p>
       <p className="mt-2 font-semibold">{value}</p>
     </div>
   );
