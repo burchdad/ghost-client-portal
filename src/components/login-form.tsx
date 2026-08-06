@@ -8,7 +8,7 @@ export function LoginForm() {
   const [state, action] = useActionState(loginAction, { error: null });
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} autoComplete="off" className="space-y-4">
       <div>
         <label htmlFor="email" className="mb-2 block text-sm text-muted">
           Email
@@ -17,7 +17,10 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
-          autoComplete="email"
+          autoComplete="off"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           required
           className="w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
         />
@@ -30,7 +33,7 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
-          autoComplete="current-password"
+          autoComplete="off"
           required
           className="w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
         />
