@@ -4,6 +4,8 @@ import { getDb } from "@/lib/db";
 import { createOpaqueToken, sha256, verifyPassword } from "@/lib/crypto";
 
 export const sessionCookieName = "ghost_client_portal_session";
+export const activeOrganizationCookieName =
+  "ghost_client_portal_active_organization";
 
 export type AuthenticatedUser = Pick<
   User,
@@ -49,6 +51,23 @@ export async function destroySession() {
   }
 
   cookieStore.delete(sessionCookieName);
+  cookieStore.delete(activeOrganizationCookieName);
+}
+
+export async function setActiveOrganization(organizationId: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(activeOrganizationCookieName, organizationId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 14,
+  });
+}
+
+export async function getActiveOrganizationId() {
+  const cookieStore = await cookies();
+  return cookieStore.get(activeOrganizationCookieName)?.value ?? null;
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
@@ -107,6 +126,19 @@ export async function authenticateWithPassword(
   });
 
   await createSession(user.id);
+
+  const latestMembership = await db.organizationMembership.findFirst({
+    where: {
+      userId: user.id,
+      deletedAt: null,
+      organization: { deletedAt: null },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (latestMembership) {
+    await setActiveOrganization(latestMembership.organizationId);
+  }
 
   return user;
 }

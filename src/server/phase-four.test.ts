@@ -26,10 +26,11 @@ import {
   generateInvitationToken,
   hashInvitationToken,
 } from "@/server/invitations/service";
-import { createSession } from "@/lib/auth/session";
+import { createSession, setActiveOrganization } from "@/lib/auth/session";
 
 vi.mock("@/lib/auth/session", () => ({
   createSession: vi.fn(),
+  setActiveOrganization: vi.fn(),
 }));
 
 describe("environment safety", () => {
@@ -252,6 +253,7 @@ describe("client lifecycle calculations", () => {
       data: { accountStatus: "ACTIVE" },
     });
     expect(createSession).toHaveBeenCalledWith("user_1");
+    expect(setActiveOrganization).toHaveBeenCalledWith("org_1");
   });
 });
 

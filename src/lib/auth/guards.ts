@@ -6,7 +6,11 @@ import {
   hasOrganizationRole,
   projectAccessRoles,
 } from "@/lib/auth/permissions";
-import { getCurrentUser } from "@/lib/auth/session";
+import {
+  getActiveOrganizationId,
+  getCurrentUser,
+  setActiveOrganization,
+} from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 
 export class AuthorizationError extends Error {
@@ -93,19 +97,45 @@ export async function requireClientWorkspace(organizationId?: string) {
     };
   }
 
+  const activeOrganizationId =
+    organizationId ?? (await getActiveOrganizationId());
   const membership = await db.organizationMembership.findFirst({
     where: {
       userId: user.id,
       deletedAt: null,
-      organizationId,
+      organizationId: activeOrganizationId ?? undefined,
       organization: { deletedAt: null },
     },
     include: { organization: true },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
   });
 
   if (membership) {
+    if (!organizationId && membership.organizationId !== activeOrganizationId) {
+      await setActiveOrganization(membership.organizationId);
+    }
     return { user, membership, organization: membership.organization };
+  }
+
+  if (activeOrganizationId && !organizationId) {
+    const fallbackMembership = await db.organizationMembership.findFirst({
+      where: {
+        userId: user.id,
+        deletedAt: null,
+        organization: { deletedAt: null },
+      },
+      include: { organization: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (fallbackMembership) {
+      await setActiveOrganization(fallbackMembership.organizationId);
+      return {
+        user,
+        membership: fallbackMembership,
+        organization: fallbackMembership.organization,
+      };
+    }
   }
 
   throw new AuthorizationError("Organization membership is required.");

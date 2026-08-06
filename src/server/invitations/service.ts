@@ -1,6 +1,6 @@
 import type { OrganizationRole, PrismaClient } from "@prisma/client";
 import { createOpaqueToken, hashPassword, sha256 } from "@/lib/crypto";
-import { createSession } from "@/lib/auth/session";
+import { createSession, setActiveOrganization } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { isProductionLike } from "@/server/env";
 import { assertNoExternalPlaceholderData } from "@/server/placeholders";
@@ -209,4 +209,5 @@ export async function acceptInvitation(input: {
   });
 
   await createSession(userId);
+  await setActiveOrganization(invitation.organizationId);
 }
