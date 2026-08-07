@@ -1,11 +1,21 @@
 import Link from "next/link";
 import { requireInternalRole } from "@/lib/auth/guards";
 import { humanizeEnum } from "@/lib/format";
+import { getGeoApprovalSync } from "@/server/geo-command/service";
 import { getAdminVegaData } from "@/server/vega/service";
 
 export default async function AdminGeoPage() {
   await requireInternalRole();
   const organizations = await getAdminVegaData();
+  const approvalSyncs = await Promise.all(
+    organizations.map(async (organization) => ({
+      organizationId: organization.id,
+      sync: await getGeoApprovalSync(organization),
+    })),
+  );
+  const syncByOrganization = new Map(
+    approvalSyncs.map((item) => [item.organizationId, item.sync]),
+  );
   const totalCompetitors = organizations.reduce(
     (total, organization) =>
       total + organization.snapshot.summary.capturedCompetitors,
@@ -20,6 +30,17 @@ export default async function AdminGeoPage() {
         ) / organizations.length,
       )
     : 0;
+  const connectedApprovals = approvalSyncs.filter(
+    (item) => item.sync.status === "connected",
+  );
+  const totalClientPending = connectedApprovals.reduce(
+    (total, item) =>
+      total +
+      (item.sync.status === "connected"
+        ? item.sync.center.summary.clientPending
+        : 0),
+    0,
+  );
 
   return (
     <section className="space-y-6">
@@ -38,6 +59,8 @@ export default async function AdminGeoPage() {
         <Metric label="Tracked clients" value={organizations.length} />
         <Metric label="Competitors" value={totalCompetitors} />
         <Metric label="Average visibility" value={averageVisibility} />
+        <Metric label="G.E.O. synced clients" value={connectedApprovals.length} />
+        <Metric label="Client approvals" value={totalClientPending} />
       </div>
 
       <div className="rounded-lg border border-line bg-panel">
@@ -55,13 +78,28 @@ export default async function AdminGeoPage() {
                   <h2 className="mt-1 text-xl font-semibold">
                     {organization.name}
                   </h2>
+                  <p className="mt-2 text-sm text-muted">
+                    Approval sync:{" "}
+                    {syncByOrganization.get(organization.id)?.status ??
+                      "unavailable"}
+                  </p>
                 </div>
-                <Link
-                  href={`/admin/organizations/${organization.id}`}
-                  className="rounded-md border border-line px-4 py-3 text-center text-sm hover:border-accent"
-                >
-                  Open Client
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/admin/organizations/${organization.id}`}
+                    className="rounded-md border border-line px-4 py-3 text-center text-sm hover:border-accent"
+                  >
+                    Open Client
+                  </Link>
+                  <a
+                    href="https://geo.ghostai.solutions/admin/geo-command/approvals"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-line px-4 py-3 text-center text-sm hover:border-accent"
+                  >
+                    Open G.E.O.
+                  </a>
+                </div>
               </div>
               <div className="mt-5 grid gap-3 text-sm md:grid-cols-4">
                 {organization.snapshot.positioning.map((item) => (

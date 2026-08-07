@@ -230,6 +230,7 @@ export async function getAdminVegaData() {
   return organizations.map((organization) => ({
     id: organization.id,
     name: organization.name,
+    slug: organization.slug,
     accountStatus: organization.accountStatus,
     snapshot: buildVegaSnapshot({
       projects: organization.projects,
