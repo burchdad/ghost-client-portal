@@ -30,6 +30,31 @@ enum AccountStatus {
   SUSPENDED
 }
 
+enum ClientType {
+  PAID_CLIENT
+  TRADE_BARTER_CLIENT
+  INTERNAL_GHOST
+  TEST_CLIENT
+  PROSPECT
+}
+
+enum BillingModel {
+  RETAINER
+  PROJECT_BASED
+  SUBSCRIPTION
+  TRADE_BARTER
+  NO_CHARGE
+  CUSTOM
+}
+
+enum PortalStatus {
+  NOT_INVITED
+  INVITED
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
 enum ProposalStatus {
   DRAFT
   SENT
@@ -220,6 +245,12 @@ model Organization {
   name                    String
   slug                    String                    @unique
   accountStatus           AccountStatus             @default(INVITED)
+  clientType              ClientType                @default(PAID_CLIENT)
+  billingModel            BillingModel              @default(PROJECT_BASED)
+  portalStatus            PortalStatus              @default(NOT_INVITED)
+  clientSince             DateTime?
+  internalNotes           String?
+  tradeTerms              String?
   primaryContactId        String?
   billingContactId        String?
   isTestRecord            Boolean                   @default(false)

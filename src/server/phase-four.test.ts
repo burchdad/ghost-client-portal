@@ -250,7 +250,7 @@ describe("client lifecycle calculations", () => {
 
     expect(tx.organization.updateMany).toHaveBeenCalledWith({
       where: { id: "org_1", accountStatus: "INVITED" },
-      data: { accountStatus: "ACTIVE" },
+      data: { accountStatus: "ACTIVE", portalStatus: "ACTIVE" },
     });
     expect(createSession).toHaveBeenCalledWith("user_1");
     expect(setActiveOrganization).toHaveBeenCalledWith("org_1");

@@ -1,5 +1,14 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { requireInternalRole } from "@/lib/auth/guards";
+import {
+  billingModelLabel,
+  billingModelOptions,
+  clientTypeLabel,
+  clientTypeOptions,
+  portalStatusLabel,
+  portalStatusOptions,
+} from "@/lib/client-classification";
 import { getDb } from "@/lib/db";
 import {
   createClientInvitationAction,
@@ -11,7 +20,7 @@ export default async function AdminOrganizationDetailPage({
   searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
-  searchParams: Promise<{ invite?: string }>;
+  searchParams: Promise<{ invite?: string; notice?: string; created?: string }>;
 }) {
   await requireInternalRole();
   const query = await searchParams;
@@ -40,6 +49,8 @@ export default async function AdminOrganizationDetailPage({
     organization.primaryContact ??
     organization.contacts.find((contact) => contact.isPrimary) ??
     organization.contacts[0];
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const inviteUrl = query.invite ? `${appUrl}/invite/${query.invite}` : null;
 
   return (
     <section className="space-y-6">
@@ -48,13 +59,36 @@ export default async function AdminOrganizationDetailPage({
         <p className="mt-3 text-sm text-muted">
           Client lifecycle operations for this organization.
         </p>
-        <Link
-          href={`/admin/organizations/${organization.id}/launch-readiness`}
-          className="mt-4 inline-flex rounded-md border border-line px-4 py-3 text-sm"
-        >
-          Launch readiness
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          <Badge>{clientTypeLabel(organization.clientType)}</Badge>
+          <Badge>{billingModelLabel(organization.billingModel)}</Badge>
+          <Badge>{portalStatusLabel(organization.portalStatus)}</Badge>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href={`/admin/organizations/${organization.id}/launch-readiness`}
+            className="inline-flex rounded-md border border-line px-4 py-3 text-sm"
+          >
+            Launch readiness
+          </Link>
+          <Link
+            href="/admin/organizations/new"
+            className="inline-flex rounded-md border border-line px-4 py-3 text-sm"
+          >
+            Add another client
+          </Link>
+        </div>
       </div>
+      {query.notice ? (
+        <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-accent">
+          {query.notice}
+        </p>
+      ) : null}
+      {query.created === "manual" ? (
+        <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-accent">
+          Manual client record created.
+        </p>
+      ) : null}
       <form
         action={updateOrganizationLifecycleAction}
         className="rounded-lg border border-line bg-panel p-5"
@@ -66,6 +100,30 @@ export default async function AdminOrganizationDetailPage({
             label="Organization display name"
             name="name"
             defaultValue={organization.name}
+          />
+          <Field
+            label="Client since"
+            name="clientSince"
+            type="date"
+            defaultValue={toDateInputValue(organization.clientSince)}
+          />
+          <Select
+            label="Client type"
+            name="clientType"
+            defaultValue={organization.clientType}
+            options={clientTypeOptions}
+          />
+          <Select
+            label="Billing model"
+            name="billingModel"
+            defaultValue={organization.billingModel}
+            options={billingModelOptions}
+          />
+          <Select
+            label="Portal status"
+            name="portalStatus"
+            defaultValue={organization.portalStatus}
+            options={portalStatusOptions}
           />
           <Field
             label="Primary contact name"
@@ -119,6 +177,22 @@ export default async function AdminOrganizationDetailPage({
             type="email"
           />
           <label className="text-sm text-muted md:col-span-2">
+            Trade or barter terms
+            <textarea
+              name="tradeTerms"
+              defaultValue={organization.tradeTerms ?? ""}
+              className="mt-2 min-h-24 w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
+            />
+          </label>
+          <label className="text-sm text-muted md:col-span-2">
+            Internal notes
+            <textarea
+              name="internalNotes"
+              defaultValue={organization.internalNotes ?? ""}
+              className="mt-2 min-h-24 w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
+            />
+          </label>
+          <label className="text-sm text-muted md:col-span-2">
             Audit reason
             <textarea
               name="reason"
@@ -147,12 +221,12 @@ export default async function AdminOrganizationDetailPage({
       </div>
       <div className="rounded-lg border border-line bg-panel p-5">
         <h2 className="text-xl font-semibold">Client invitation</h2>
-        {query.invite ? (
+        {inviteUrl ? (
           <div className="mt-4 rounded-md border border-accent/30 bg-accent/10 p-4 text-sm">
             <p className="font-medium text-accent">
               Copy this invitation link now
             </p>
-            <p className="mt-2 break-all font-mono">/invite/{query.invite}</p>
+            <p className="mt-2 break-all font-mono">{inviteUrl}</p>
             <p className="mt-2 text-muted">
               The full token is not stored and will not be shown again.
             </p>
@@ -243,6 +317,35 @@ function Field({
   );
 }
 
+function Select<T extends string>({
+  label,
+  name,
+  defaultValue,
+  options,
+}: {
+  label: string;
+  name: string;
+  defaultValue: T;
+  options: Array<{ value: T; label: string }>;
+}) {
+  return (
+    <label className="text-sm text-muted">
+      {label}
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className="mt-2 w-full rounded-md border border-line bg-black/20 px-3 py-3 text-foreground"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-line bg-panel p-5">
@@ -250,4 +353,16 @@ function Info({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
   );
+}
+
+function Badge({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-md border border-line bg-white/[0.035] px-2 py-1 text-muted">
+      {children}
+    </span>
+  );
+}
+
+function toDateInputValue(date: Date | null | undefined) {
+  return date ? date.toISOString().slice(0, 10) : "";
 }

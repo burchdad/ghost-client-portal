@@ -162,7 +162,7 @@ export async function acceptInvitation(input: {
         id: invitation.organizationId,
         accountStatus: "INVITED",
       },
-      data: { accountStatus: "ACTIVE" },
+      data: { accountStatus: "ACTIVE", portalStatus: "ACTIVE" },
     });
 
     await tx.invitation.update({

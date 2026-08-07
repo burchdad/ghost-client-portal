@@ -1,5 +1,6 @@
 "use server";
 
+import type { BillingModel, ClientType, PortalStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireInternalRole } from "@/lib/auth/guards";
@@ -9,9 +10,40 @@ import { createInvitation } from "@/server/invitations/service";
 import { assertNoExternalPlaceholderData } from "@/server/placeholders";
 import { redirect } from "next/navigation";
 
+const clientTypes = [
+  "PAID_CLIENT",
+  "TRADE_BARTER_CLIENT",
+  "INTERNAL_GHOST",
+  "TEST_CLIENT",
+  "PROSPECT",
+] as const satisfies readonly ClientType[];
+
+const billingModels = [
+  "RETAINER",
+  "PROJECT_BASED",
+  "SUBSCRIPTION",
+  "TRADE_BARTER",
+  "NO_CHARGE",
+  "CUSTOM",
+] as const satisfies readonly BillingModel[];
+
+const portalStatuses = [
+  "NOT_INVITED",
+  "INVITED",
+  "ACTIVE",
+  "PAUSED",
+  "ARCHIVED",
+] as const satisfies readonly PortalStatus[];
+
 const organizationUpdateSchema = z.object({
   organizationId: z.string().min(1),
   name: z.string().trim().min(2).max(160),
+  clientType: z.enum(clientTypes),
+  billingModel: z.enum(billingModels),
+  portalStatus: z.enum(portalStatuses),
+  clientSince: z.string().trim().optional(),
+  internalNotes: z.string().trim().max(4000).optional(),
+  tradeTerms: z.string().trim().max(2000).optional(),
   primaryContactName: z.string().trim().min(2).max(160),
   primaryContactTitle: z.string().trim().max(120).optional(),
   primaryContactEmail: z.string().email(),
@@ -46,6 +78,12 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
   const parsed = organizationUpdateSchema.parse({
     organizationId: formData.get("organizationId"),
     name: formData.get("name"),
+    clientType: formData.get("clientType"),
+    billingModel: formData.get("billingModel"),
+    portalStatus: formData.get("portalStatus"),
+    clientSince: formData.get("clientSince") || undefined,
+    internalNotes: formData.get("internalNotes") || undefined,
+    tradeTerms: formData.get("tradeTerms") || undefined,
     primaryContactName: formData.get("primaryContactName"),
     primaryContactTitle: formData.get("primaryContactTitle") || undefined,
     primaryContactEmail: formData.get("primaryContactEmail"),
@@ -62,6 +100,7 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
   if (isProductionLike()) {
     assertNoExternalPlaceholderData("client record cleanup", {
       organizationName: parsed.name,
+      tradeTerms: parsed.tradeTerms,
       primaryContactName: parsed.primaryContactName,
       primaryContactTitle: parsed.primaryContactTitle,
       primaryContactEmail: parsed.primaryContactEmail,
@@ -69,6 +108,10 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
       billingContactEmail: parsed.billingContactEmail,
     });
   }
+
+  const clientSince = parsed.clientSince
+    ? new Date(`${parsed.clientSince}T00:00:00.000Z`)
+    : null;
 
   await db.$transaction(async (tx) => {
     const organization = await tx.organization.findUniqueOrThrow({
@@ -142,6 +185,12 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
       where: { id: parsed.organizationId },
       data: {
         name: parsed.name,
+        clientType: parsed.clientType,
+        billingModel: parsed.billingModel,
+        portalStatus: parsed.portalStatus,
+        clientSince,
+        internalNotes: parsed.internalNotes,
+        tradeTerms: parsed.tradeTerms,
         primaryContactId: primaryContact.id,
         billingContactId,
       },
@@ -157,6 +206,11 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
           displayNameUpdated: parsed.name !== organization.name,
           previous: {
             name: organization.name,
+            clientType: organization.clientType,
+            billingModel: organization.billingModel,
+            portalStatus: organization.portalStatus,
+            clientSince: organization.clientSince?.toISOString() ?? null,
+            tradeTerms: organization.tradeTerms ?? null,
             primaryContactName: primary?.name ?? null,
             primaryContactEmail: primary?.email ?? null,
             primaryContactTitle: primary?.title ?? null,
@@ -167,6 +221,11 @@ export async function updateOrganizationLifecycleAction(formData: FormData) {
           },
           next: {
             name: parsed.name,
+            clientType: parsed.clientType,
+            billingModel: parsed.billingModel,
+            portalStatus: parsed.portalStatus,
+            clientSince: clientSince?.toISOString() ?? null,
+            tradeTerms: parsed.tradeTerms ?? null,
             primaryContactName: parsed.primaryContactName,
             primaryContactEmail: parsed.primaryContactEmail.toLowerCase(),
             primaryContactTitle: parsed.primaryContactTitle ?? null,
@@ -218,6 +277,11 @@ export async function createClientInvitationAction(formData: FormData) {
     createdById: user.id,
     status: "REVIEWED",
     reviewedAt: new Date(),
+  });
+
+  await getDb().organization.update({
+    where: { id: parsed.organizationId },
+    data: { portalStatus: "INVITED" },
   });
 
   redirect(`/admin/organizations/${parsed.organizationId}?invite=${token}`);

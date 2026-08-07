@@ -9,6 +9,10 @@ import {
   StatusBadge,
 } from "@/components/workspace-ui";
 import { requireClientWorkspace } from "@/lib/auth/guards";
+import {
+  billingModelLabel,
+  suppressStripeForBillingModel,
+} from "@/lib/client-classification";
 import { getDb } from "@/lib/db";
 import { formatDate, formatMoney, humanizeEnum } from "@/lib/format";
 
@@ -46,6 +50,9 @@ export default async function PaymentsPage({
       payment.status,
     ),
   );
+  const stripeSuppressed = suppressStripeForBillingModel(
+    organization.billingModel,
+  );
 
   return (
     <section className="space-y-6">
@@ -72,10 +79,21 @@ export default async function PaymentsPage({
           {
             label: "Schedule",
             value: String(scheduleItems.length),
-            detail: "Invoice milestones",
+            detail: stripeSuppressed
+              ? billingModelLabel(organization.billingModel)
+              : "Invoice milestones",
           },
         ]}
       />
+
+      {stripeSuppressed ? (
+        <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm leading-6 text-accent">
+          This workspace is marked as{" "}
+          {billingModelLabel(organization.billingModel)}. Stripe checkout is
+          hidden unless Ghost creates a payable invoice or changes the billing
+          model.
+        </p>
+      ) : null}
 
       {query.checkout === "success" ? (
         <p className="rounded-md border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-accent">
@@ -128,7 +146,9 @@ export default async function PaymentsPage({
                 className="rounded-md border border-line bg-white/[0.035] p-4"
               >
                 {(() => {
-                  const canCheckout = !["PAID", "WAIVED"].includes(item.status);
+                  const canCheckout =
+                    !stripeSuppressed &&
+                    !["PAID", "WAIVED"].includes(item.status);
                   const checkoutLabel =
                     item.status === "CHECKOUT_CREATED" ||
                     item.status === "PROCESSING"
@@ -178,6 +198,11 @@ export default async function PaymentsPage({
                               Ask billing
                             </Link>
                           </div>
+                        ) : stripeSuppressed &&
+                          !["PAID", "WAIVED"].includes(item.status) ? (
+                          <p className="mt-3 rounded-md border border-line px-3 py-2 text-sm text-muted">
+                            Payment handled by Ghost agreement.
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -260,9 +285,13 @@ export default async function PaymentsPage({
           title="No payments are due right now"
           body="When a proposal requires a deposit, milestone payment, or final balance, the payment record and checkout status will appear here."
           steps={[
-            "Proposal acceptance creates payment context",
-            "Stripe status syncs into the ledger",
-            "Receipts and balances stay visible",
+            stripeSuppressed
+              ? `${billingModelLabel(organization.billingModel)} clients do not see checkout by default`
+              : "Proposal acceptance creates payment context",
+            stripeSuppressed
+              ? "Ghost can still add manual records when needed"
+              : "Stripe status syncs into the ledger",
+            "Receipts, balances, and agreement notes stay visible",
           ]}
         />
       )}

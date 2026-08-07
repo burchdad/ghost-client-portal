@@ -13,6 +13,9 @@ export default async function AdminPage() {
     paymentsAwaitingConfirmation,
     projectsAwaitingActivation,
     clientsAwaitingInvitation,
+    paidClients,
+    tradeClients,
+    notInvitedClients,
     onboardingAwaitingClient,
     overdueActions,
     recoveryRequiredPayments,
@@ -30,6 +33,9 @@ export default async function AdminPage() {
         memberships: { none: { deletedAt: null } },
       },
     }),
+    db.organization.count({ where: { clientType: "PAID_CLIENT" } }),
+    db.organization.count({ where: { clientType: "TRADE_BARTER_CLIENT" } }),
+    db.organization.count({ where: { portalStatus: "NOT_INVITED" } }),
     db.onboardingForm.count({ where: { submittedAt: null } }),
     db.clientAction.count({
       where: {
@@ -66,6 +72,21 @@ export default async function AdminPage() {
           label="Audit events"
           value={String(auditEvents)}
           detail="Immutable security trail"
+        />
+        <StatusCard
+          label="Paid clients"
+          value={String(paidClients)}
+          detail="Standard billing"
+        />
+        <StatusCard
+          label="Trade clients"
+          value={String(tradeClients)}
+          detail="Barter or exchange"
+        />
+        <StatusCard
+          label="Not invited"
+          value={String(notInvitedClients)}
+          detail="Portal access pending"
         />
       </div>
       <div className="grid gap-4 md:grid-cols-3">
