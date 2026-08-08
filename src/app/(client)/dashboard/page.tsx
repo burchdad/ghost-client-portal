@@ -12,7 +12,6 @@ import {
   WalletCards,
 } from "lucide-react";
 import {
-  EmptyWorkspace,
   MetricCard,
   PageHero,
   ProgressBar,
@@ -32,31 +31,33 @@ export default async function DashboardPage() {
     data.summary.activeProjects > 0 ||
     data.summary.openActions > 0 ||
     data.safeActivity.length > 0;
+  const ghostLead = activeProject?.projectOwner?.name ?? "Being assigned";
+  const primaryAction = data.actions[0];
   const checklist = [
     {
-      label: "Activate account",
+      label: "Account access",
       done: organization.accountStatus === "ACTIVE",
       href: "/settings/security",
     },
     {
-      label: "Review approvals",
+      label: "Approvals",
       done: data.summary.awaitingApproval === 0,
       href: "/proposals",
     },
     {
-      label: "Complete open actions",
+      label: "Open actions",
       done: data.summary.openActions === 0,
       href: activeProject
         ? `/projects/${activeProject.id}#actions`
         : "/projects",
     },
     {
-      label: "Configure alerts",
+      label: "Alerts",
       done: true,
       href: "/settings",
     },
     {
-      label: "Ask Ghost when blocked",
+      label: "Support",
       done: true,
       href: "/requests",
     },
@@ -65,12 +66,12 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Workspace command"
-        title={`${organization.name} growth cockpit`}
+        eyebrow="Client workspace"
+        title={`${organization.name} dashboard`}
         body={
           hasWork
-            ? `Welcome back, ${firstName}. Your workspace is active across client work, lead generation, visibility, and campaign planning.`
-            : `Welcome back, ${firstName}. Your workspace is ready; Ghost will publish projects, proposals, payments, and operating signals here as they activate.`
+            ? `Welcome back, ${firstName}. Review what needs attention, check project progress, and jump into Vega, GEO, Echo, or payments from one place.`
+            : `Welcome back, ${firstName}. Your portal is ready. Projects, approvals, payment items, and Ghost AI signals will appear here as they are published.`
         }
         actions={
           <>
@@ -78,7 +79,7 @@ export default async function DashboardPage() {
               href="/vega"
               className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
             >
-              Open Vega
+              Run Vega search
               <ArrowRight size={16} aria-hidden />
             </Link>
             <Link
@@ -91,19 +92,19 @@ export default async function DashboardPage() {
         }
         metrics={[
           {
-            label: "Status",
-            value: humanizeEnum(organization.accountStatus),
-            detail: "Client workspace",
+            label: "Workspace",
+            value: displayEnum(organization.accountStatus),
+            detail: "Portal status",
           },
           {
-            label: "Lead",
-            value: activeProject?.projectOwner?.name ?? "Pending",
-            detail: "Ghost account owner",
+            label: "Ghost lead",
+            value: ghostLead,
+            detail: "Account support",
           },
           {
-            label: "Unread",
+            label: "Alerts",
             value: String(data.unreadNotificationCount),
-            detail: "Notifications",
+            detail: "Unread",
           },
         ]}
       />
@@ -112,18 +113,18 @@ export default async function DashboardPage() {
         <MetricCard
           label="Active projects"
           value={String(data.summary.activeProjects)}
-          detail="Client-visible workspaces"
+          detail="Published workspaces"
           tone="accent"
         />
         <MetricCard
           label="Open actions"
           value={String(data.summary.openActions)}
-          detail="Items waiting on a client or Ghost decision"
+          detail="Need attention"
         />
         <MetricCard
           label="Awaiting approval"
           value={String(data.summary.awaitingApproval)}
-          detail="Decision checkpoints"
+          detail="Client decisions"
         />
         <MetricCard
           label="Paid"
@@ -138,11 +139,15 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid items-start gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionPanel
-          title="Next best action"
+          title={primaryAction ? "Next action" : "All clear"}
           eyebrow="Priority queue"
-          aside={<span className="text-sm text-muted">Sorted by urgency</span>}
+          aside={
+            <span className="text-sm text-muted">
+              {primaryAction ? "Sorted by urgency" : "Nothing due"}
+            </span>
+          }
         >
           <div className="space-y-3">
             {data.actions.length ? (
@@ -182,22 +187,40 @@ export default async function DashboardPage() {
                 </div>
               ))
             ) : (
-              <EmptyWorkspace
-                icon={CheckCircle2}
-                title="No action is waiting on you"
-                body="The client queue is clear. Ghost will surface approvals, questionnaires, payment reviews, and launch decisions here when they need attention."
-                steps={[
-                  "Workspace monitored",
-                  "Notifications enabled",
-                  "Next action will appear here",
-                ]}
-              />
+              <div className="rounded-md border border-line bg-white/[0.035] p-5">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-md border border-accent/30 bg-accent/10 p-2 text-accent">
+                    <CheckCircle2 size={20} aria-hidden />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      No client action is due
+                    </h3>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+                      You are caught up. When Ghost needs an approval,
+                      questionnaire, payment review, or decision, it will appear
+                      here with a clear next step.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted">
+                      <span className="rounded-md border border-line px-3 py-2">
+                        Monitoring workspace
+                      </span>
+                      <span className="rounded-md border border-line px-3 py-2">
+                        Alerts enabled
+                      </span>
+                      <span className="rounded-md border border-line px-3 py-2">
+                        No deadline today
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </SectionPanel>
 
         <div className="space-y-5">
-          <SectionPanel title="Client launch checklist" eyebrow="Onboarding">
+          <SectionPanel title="Workspace readiness" eyebrow="Setup">
             <div className="space-y-3">
               {checklist.map((item) => (
                 <Link
@@ -214,14 +237,14 @@ export default async function DashboardPage() {
                     <span className="font-semibold">{item.label}</span>
                   </span>
                   <StatusBadge tone={item.done ? "accent" : "warning"}>
-                    {item.done ? "Ready" : "Needs review"}
+                    {item.done ? "Ready" : "Review"}
                   </StatusBadge>
                 </Link>
               ))}
             </div>
           </SectionPanel>
 
-          <SectionPanel title="Operating modules" eyebrow="Ghost AI system">
+          <SectionPanel title="Ghost AI modules" eyebrow="Tools">
             <div className="grid gap-3 md:grid-cols-2">
               <ModuleCard
                 icon={Sparkles}
@@ -234,7 +257,7 @@ export default async function DashboardPage() {
                 icon={Compass}
                 title="GEO"
                 href="/geo"
-                body="SEO, AEO, GEO positioning, competitors, and visibility gaps."
+                body="Search visibility, AI answer readiness, competitors, and gaps."
                 status="Tracking"
               />
               <ModuleCard
@@ -248,7 +271,7 @@ export default async function DashboardPage() {
                 icon={WalletCards}
                 title="Payments"
                 href="/payments"
-                body="Balances, checkout state, history, and billing readiness."
+                body="Balances, checkout status, payment history, and billing notes."
                 status={data.summary.amountDueCents ? "Due" : "Clear"}
               />
             </div>
@@ -256,7 +279,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
+      <section className="grid items-start gap-5 xl:grid-cols-[1fr_0.8fr]">
         {activeProject ? (
           <SectionPanel
             title={activeProject.name}
@@ -297,19 +320,28 @@ export default async function DashboardPage() {
             </div>
           </SectionPanel>
         ) : (
-          <EmptyWorkspace
-            icon={FolderKanban}
-            title="No active project is visible yet"
-            body="When Ghost activates the first engagement, the project workspace will show phases, milestones, files, requests, actions, and delivery progress."
-            steps={[
-              "Proposal or kickoff starts the workspace",
-              "Milestones publish here",
-              "Client actions stay organized",
-            ]}
-          />
+          <SectionPanel title="Projects" eyebrow="Delivery">
+            <div className="rounded-md border border-dashed border-line p-5">
+              <div className="flex items-start gap-4">
+                <div className="rounded-md border border-accent/30 bg-accent/10 p-2 text-accent">
+                  <FolderKanban size={20} aria-hidden />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    No project is published yet
+                  </h3>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+                    Once Ghost opens your first engagement, this area will show
+                    milestones, files, approvals, actions, and delivery
+                    progress.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </SectionPanel>
         )}
 
-        <SectionPanel title="Recent activity" eyebrow="Client-safe log">
+        <SectionPanel title="Recent activity" eyebrow="Updates">
           <div className="space-y-3">
             {data.safeActivity.length ? (
               data.safeActivity.map((item) => (
@@ -327,7 +359,7 @@ export default async function DashboardPage() {
               ))
             ) : (
               <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
-                Client-safe activity will appear here as Ghost publishes
+                Updates will appear here when Ghost publishes client-visible
                 progress.
               </p>
             )}
@@ -341,10 +373,9 @@ export default async function DashboardPage() {
           className="rounded-lg border border-line bg-panel p-5 transition hover:border-accent"
         >
           <MessageSquareText size={20} className="text-accent" aria-hidden />
-          <h2 className="mt-4 text-xl font-semibold">Need something?</h2>
+          <h2 className="mt-4 text-xl font-semibold">Ask Ghost</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Submit a request to Ghost and keep the follow-up attached to this
-            workspace.
+            Send a request and keep the follow-up tied to this workspace.
           </p>
         </Link>
         <Link
@@ -352,10 +383,10 @@ export default async function DashboardPage() {
           className="rounded-lg border border-line bg-panel p-5 transition hover:border-accent"
         >
           <BellRing size={20} className="text-accent" aria-hidden />
-          <h2 className="mt-4 text-xl font-semibold">Tune your alerts</h2>
+          <h2 className="mt-4 text-xl font-semibold">Notification settings</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Choose the updates you want for projects, proposals, Vega, GEO,
-            Echo, requests, and payments.
+            Choose which project, proposal, Vega, GEO, Echo, request, and
+            payment updates you receive.
           </p>
         </Link>
       </section>
@@ -402,4 +433,8 @@ function Mini({ label, value }: { label: string; value: string }) {
       <p className="mt-2 font-semibold">{value}</p>
     </div>
   );
+}
+
+function displayEnum(value: string) {
+  return humanizeEnum(value).replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

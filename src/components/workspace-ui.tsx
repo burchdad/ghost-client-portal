@@ -30,14 +30,14 @@ export function PageHero({
           ) : null}
         </div>
         {metrics?.length ? (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-[31rem] xl:shrink-0">
             {metrics.map((metric) => (
               <div
                 key={metric.label}
-                className="rounded-md border border-line bg-black/15 px-4 py-3"
+                className="min-w-0 rounded-md border border-line bg-black/15 px-4 py-3"
               >
                 <p className="text-xs text-muted">{metric.label}</p>
-                <p className="mt-1 break-words text-2xl font-semibold leading-tight">
+                <p className="mt-1 text-xl font-semibold leading-tight md:text-2xl">
                   {metric.value}
                 </p>
                 {metric.detail ? (
