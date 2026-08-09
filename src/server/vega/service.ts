@@ -49,6 +49,8 @@ type VegaLeadRecord = {
   phone: string | null;
   website: string | null;
   source: string;
+  sourceEvidence: string[];
+  sourceConfidence: string;
   notes: string | null;
   nextStep: string;
 };
@@ -167,22 +169,7 @@ export async function getClientVegaData(organizationId: string) {
     snapshot: buildVegaSnapshot({
       projects,
       responses,
-      storedLeads: storedLeads.map((lead) => ({
-        id: lead.id,
-        company: lead.company,
-        contact: lead.contactName ?? "Contact pending",
-        title: lead.title ?? "Decision maker",
-        segment: lead.segment,
-        stage: lead.status,
-        intentScore: lead.intentScore,
-        emailStatus: lead.email ? "Ready for outreach" : "Needs enrichment",
-        email: lead.email,
-        phone: lead.phone,
-        website: lead.website,
-        source: lead.source,
-        notes: lead.notes,
-        nextStep: lead.nextStep ?? "Review lead before outreach.",
-      })),
+      storedLeads: storedLeads.map((lead) => buildStoredLeadRecord(lead)),
       queries: queries.map((query) => ({
         id: query.id,
         prompt: query.prompt,
@@ -210,6 +197,56 @@ export async function getClientVegaData(organizationId: string) {
           type: item.type,
         })),
     }),
+  };
+}
+
+function buildStoredLeadRecord(lead: {
+  id: string;
+  company: string;
+  contactName: string | null;
+  title: string | null;
+  segment: string;
+  status: string;
+  intentScore: number;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  source: string;
+  notes: string | null;
+  nextStep: string | null;
+}): VegaLeadRecord {
+  const sourceEvidence = buildSourceEvidence({
+    source: lead.source,
+    notes: lead.notes,
+    email: lead.email,
+    phone: lead.phone,
+    website: lead.website,
+  });
+
+  return {
+    id: lead.id,
+    company: lead.company,
+    contact: lead.contactName ?? "Contact pending",
+    title: lead.title ?? "Decision maker",
+    segment: lead.segment,
+    stage: lead.status,
+    intentScore: lead.intentScore,
+    emailStatus: lead.email
+      ? "Verified email ready"
+      : "Email blocked until verified",
+    email: lead.email,
+    phone: lead.phone,
+    website: normalizeWebsite(lead.website),
+    source: lead.source,
+    sourceEvidence,
+    sourceConfidence:
+      sourceEvidence.length >= 4
+        ? "Multi-signal"
+        : sourceEvidence.length >= 2
+          ? "Single source + context"
+          : "Needs confirmation",
+    notes: lead.notes,
+    nextStep: lead.nextStep ?? "Review lead before outreach.",
   };
 }
 
@@ -558,6 +595,8 @@ function buildLeadRecords(
         phone: null,
         website: null,
         source: lead.source,
+        sourceEvidence: [lead.source],
+        sourceConfidence: "Generated placeholder",
         notes: null,
         nextStep: lead.nextStep,
       }))
@@ -575,11 +614,54 @@ function buildLeadRecords(
           phone: null,
           website: null,
           source: "Vega setup",
+          sourceEvidence: ["Vega setup"],
+          sourceConfidence: "Needs source",
           notes: null,
           nextStep:
             "Connect a lead source or run a Vega query to populate this workspace.",
         },
       ];
+}
+
+function buildSourceEvidence(input: {
+  source: string;
+  notes: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+}) {
+  const evidence = [
+    input.source ? `Primary source: ${formatSource(input.source)}` : null,
+    input.email ? "Verified email captured" : null,
+    input.phone ? "Phone path captured" : null,
+    input.website ? "Company website captured" : null,
+    ...(input.notes
+      ?.split("\n")
+      .map((line) => line.trim())
+      .filter((line) =>
+        /signal|source|profile|website|phone|email|buyer fit|confidence/i.test(
+          line,
+        ),
+      )
+      .slice(0, 4) ?? []),
+  ];
+
+  return [...new Set(evidence.filter((item): item is string => Boolean(item)))];
+}
+
+function formatSource(source: string) {
+  return source
+    .replace(/^lead_command:/i, "")
+    .replace(/:/g, " · ")
+    .replace(/_/g, " ")
+    .trim();
+}
+
+function normalizeWebsite(value: string | null) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function fulfillmentRate(resultCount: number, requestedCount: number) {

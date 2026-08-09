@@ -103,6 +103,41 @@ describe("Lead Command client", () => {
       status: "QUALIFIED",
       nextStep: "Create phone-assist task; email needs enrichment.",
     });
+    expect(result.leads[0].website).toBe("https://office.example.com");
+  });
+
+  it("keeps source profile URLs in evidence notes instead of treating them as company websites", async () => {
+    vi.stubEnv("LEAD_COMMAND_BASE_URL", "https://leadgen.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          provider: "google-maps",
+          reviewLeads: [
+            {
+              companyName: "No Site HVAC",
+              phone: "903-555-0300",
+              sourceUrl: "https://maps.google.com/no-site-hvac",
+              niche: "HVAC contractor",
+              score: 82,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const result = await searchLeadCommandLeads(
+      "need 10 HVAC leads near Tyler, Texas",
+    );
+
+    expect(result.leads[0]).toMatchObject({
+      company: "No Site HVAC",
+      website: null,
+      phone: "903-555-0300",
+    });
+    expect(result.leads[0].notes).toContain(
+      "Source profile: https://maps.google.com/no-site-hvac",
+    );
   });
 
   it("classifies Lead Command authorization failures", async () => {

@@ -323,6 +323,8 @@ function LeadCard({
     phone: string | null;
     website: string | null;
     source: string;
+    sourceEvidence: string[];
+    sourceConfidence: string;
     notes: string | null;
     nextStep: string;
   };
@@ -330,6 +332,9 @@ function LeadCard({
   const hasEmail = Boolean(lead.email);
   const hasPhone = Boolean(lead.phone);
   const hasWebsite = Boolean(lead.website);
+  const sourceSummary = lead.sourceEvidence.length
+    ? lead.sourceEvidence.slice(0, 3).join(" | ")
+    : lead.source.replaceAll("_", " ");
 
   return (
     <article className="rounded-lg border border-line bg-white/[0.035] p-4">
@@ -369,25 +374,55 @@ function LeadCard({
           <ContactSignal
             icon={Mail}
             label="Email"
-            value={hasEmail ? "Verified path" : lead.emailStatus}
+            value={hasEmail ? lead.email : lead.emailStatus}
             active={hasEmail}
           />
           <ContactSignal
             icon={Phone}
             label="Phone"
-            value={hasPhone ? "Callable" : "Needs enrichment"}
+            value={
+              hasPhone ? (
+                <a href={`tel:${lead.phone}`} className="hover:text-accent">
+                  {lead.phone}
+                </a>
+              ) : (
+                "No callable phone captured"
+              )
+            }
             active={hasPhone}
           />
           <ContactSignal
             icon={ArrowUpRight}
             label="Website"
-            value={hasWebsite ? "Site found" : "Not found"}
+            value={
+              hasWebsite ? (
+                <a
+                  href={lead.website ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all hover:text-accent"
+                >
+                  {lead.website}
+                </a>
+              ) : (
+                "No website captured"
+              )
+            }
             active={hasWebsite}
           />
           <ContactSignal
             icon={ShieldCheck}
             label="Source"
-            value={lead.source.replaceAll("_", " ")}
+            value={
+              <span>
+                <span className="block font-semibold">
+                  {lead.sourceConfidence}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-muted">
+                  {sourceSummary}
+                </span>
+              </span>
+            }
             active
           />
         </div>
@@ -421,7 +456,7 @@ function ContactSignal({
 }: {
   icon: LucideIcon;
   label: string;
-  value: string;
+  value: React.ReactNode;
   active: boolean;
 }) {
   return (

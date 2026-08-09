@@ -252,7 +252,7 @@ function mapLeadCommandLead(
 
   const email = lead.email?.trim() || null;
   const phone = lead.phone?.trim() || null;
-  const website = lead.website ?? lead.sourceUrl ?? null;
+  const website = lead.website?.trim() || null;
   const score = Math.round(lead.score ?? 0);
   const source = lead.source
     ? `lead_command:${provider}:${lead.source}`
@@ -260,6 +260,10 @@ function mapLeadCommandLead(
   const notes = [
     lead.signalSummary,
     lead.buyerFit ? `Buyer fit: ${lead.buyerFit}` : null,
+    lead.sourceUrl ? `Source profile: ${lead.sourceUrl}` : null,
+    website ? `Company website: ${website}` : null,
+    phone ? `Phone path: ${phone}` : null,
+    email ? `Verified email: ${email}` : null,
     typeof lead.confidence === "number"
       ? `Source confidence: ${lead.confidence}`
       : null,

@@ -71,4 +71,47 @@ describe("Vega client intelligence", () => {
       "Approve competitor set",
     );
   });
+
+  it("keeps real client lead contact paths and source evidence in the portal snapshot", () => {
+    const snapshot = buildVegaSnapshot({
+      projects: [],
+      responses: [],
+      activity: [],
+      storedLeads: [
+        {
+          id: "lead_1",
+          company: "Ranch HVAC Services",
+          contact: "Team at Ranch HVAC Services",
+          title: "Owner or Growth Operator",
+          segment: "HVAC contractor",
+          stage: "QUALIFIED",
+          intentScore: 87,
+          emailStatus: "Email blocked until verified",
+          email: null,
+          phone: "(903) 555-0199",
+          website: "https://ranchhvac.example",
+          source: "lead_command:google-maps:Google Maps via SerpAPI",
+          sourceEvidence: [
+            "Primary source: google-maps · Google Maps via SerpAPI",
+            "Phone path captured",
+            "Company website captured",
+          ],
+          sourceConfidence: "Single source + context",
+          notes: "Google Maps business matched search intent.",
+          nextStep: "Create phone-assist task; email needs enrichment.",
+        },
+      ],
+      useGeneratedLeadFallback: false,
+    });
+
+    expect(snapshot.leadRecords[0]).toMatchObject({
+      phone: "(903) 555-0199",
+      website: "https://ranchhvac.example",
+      emailStatus: "Email blocked until verified",
+      sourceConfidence: "Single source + context",
+    });
+    expect(snapshot.leadRecords[0].sourceEvidence).toContain(
+      "Company website captured",
+    );
+  });
 });
