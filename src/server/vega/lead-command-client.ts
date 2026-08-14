@@ -1,5 +1,9 @@
 type LeadCommandProvider =
-  "pdl" | "apollo" | "ghost-lead-agent" | "google-maps";
+  | "pdl"
+  | "apollo"
+  | "ghost-lead-agent"
+  | "google-maps"
+  | "facebook-business";
 
 export type PortalVegaLeadInput = {
   company: string;
@@ -142,6 +146,15 @@ async function fetchLeadCommandSearch(input: {
 
 export function inferLeadCommandProvider(prompt: string): LeadCommandProvider {
   const normalized = prompt.toLowerCase();
+
+  if (
+    normalized.includes("facebook") ||
+    normalized.includes("fb page") ||
+    normalized.includes("meta business")
+  ) {
+    return "facebook-business";
+  }
+
   const localSignals = [
     "near",
     "around",

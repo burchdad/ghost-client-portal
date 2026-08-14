@@ -778,6 +778,10 @@ function buildQueryPresets(
       query: `${service} decision makers in my target market`,
     },
     {
+      label: "Find Facebook locations",
+      query: `Find Facebook business locations for ${service} in my target market and cross-check them against Google Maps`,
+    },
+    {
       label: "Pull competitor gap list",
       query: competitor
         ? `companies comparing us against ${competitor}`

@@ -60,6 +60,9 @@ describe("Vega client intelligence", () => {
     expect(snapshot.queryPresets.map((preset) => preset.label)).toContain(
       "Find local buyers",
     );
+    expect(snapshot.queryPresets.map((preset) => preset.label)).toContain(
+      "Find Facebook locations",
+    );
     expect(snapshot.competitors.map((competitor) => competitor.name)).toEqual([
       "Example Competitor",
       "Search Rival",

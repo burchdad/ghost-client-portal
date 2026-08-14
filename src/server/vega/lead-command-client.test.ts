@@ -72,6 +72,55 @@ describe("Lead Command client", () => {
     });
   });
 
+  it("routes Facebook business-location requests to the Facebook discovery lane", async () => {
+    vi.stubEnv("LEAD_COMMAND_BASE_URL", "https://leadgen.test");
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          provider: "facebook-business",
+          location: "Tyler, Texas",
+          size: 20,
+        });
+
+        return Response.json({
+          provider: "facebook-business",
+          leads: [
+            {
+              companyName: "Tyler Commercial Cleaning",
+              phone: "903-555-0110",
+              website: "https://tylercommercial.example",
+              sourceUrl: "https://www.facebook.com/tylercommercialcleaning/",
+              niche: "Commercial cleaning",
+              score: 88,
+              signalSummary:
+                "Facebook business Page corroborated by Google Maps.",
+            },
+          ],
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchLeadCommandLeads(
+      "Vega, find 20 Facebook business location leads near Tyler, Texas",
+    );
+
+    expect(result).toMatchObject({
+      provider: "facebook-business",
+      source: "lead_command:facebook-business",
+      leads: [
+        {
+          company: "Tyler Commercial Cleaning",
+          phone: "903-555-0110",
+          website: "https://tylercommercial.example",
+        },
+      ],
+    });
+    expect(result.leads[0].notes).toContain(
+      "Source profile: https://www.facebook.com/tylercommercialcleaning/",
+    );
+  });
+
   it("keeps phone-only records qualified instead of marking them email-ready", async () => {
     vi.stubEnv("LEAD_COMMAND_BASE_URL", "https://leadgen.test");
     vi.stubGlobal(
@@ -168,6 +217,11 @@ describe("Lead Command client", () => {
         "Need 20 founder decision makers for a B2B service campaign",
       ),
     ).toBe("apollo");
+    expect(
+      inferLeadCommandProvider(
+        "Find Facebook business locations for HVAC companies near Tyler",
+      ),
+    ).toBe("facebook-business");
     expect(inferRequestedLeadCount("Vega, pull 75 prospects")).toBe(50);
     expect(
       inferLeadLocation(
