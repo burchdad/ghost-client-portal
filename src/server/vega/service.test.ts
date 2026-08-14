@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVegaSnapshot } from "./service";
+import { buildVegaSnapshot, deduplicateVegaLeads } from "./service";
 
 describe("Vega client intelligence", () => {
   it("builds positioning, competitor, lead, and engagement signals from portal data", () => {
@@ -83,6 +83,7 @@ describe("Vega client intelligence", () => {
       storedLeads: [
         {
           id: "lead_1",
+          queryId: "query_1",
           company: "Ranch HVAC Services",
           contact: "Team at Ranch HVAC Services",
           title: "Owner or Growth Operator",
@@ -116,5 +117,38 @@ describe("Vega client intelligence", () => {
     expect(snapshot.leadRecords[0].sourceEvidence).toContain(
       "Company website captured",
     );
+  });
+
+  it("deduplicates leads across prior requests and within a new batch", () => {
+    const existing = [
+      {
+        company: "Ranch HVAC Services LLC",
+        email: null,
+        phone: "(903) 555-0199",
+        website: "https://www.ranchhvac.example",
+      },
+    ];
+    const candidates = [
+      {
+        company: "Ranch HVAC Services",
+        email: "owner@ranchhvac.example",
+        phone: "903-555-0199",
+        website: "https://ranchhvac.example/about",
+      },
+      {
+        company: "Fresh Air Mechanical",
+        email: "hello@freshair.example",
+        phone: "903-555-0101",
+        website: "https://freshair.example",
+      },
+      {
+        company: "Fresh Air Mechanical Inc.",
+        email: "hello@freshair.example",
+        phone: "903-555-0101",
+        website: "https://freshair.example/contact",
+      },
+    ];
+
+    expect(deduplicateVegaLeads(candidates, existing)).toEqual([candidates[1]]);
   });
 });

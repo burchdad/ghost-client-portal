@@ -6,6 +6,7 @@ import {
   inferRequestedLeadCount,
   LeadCommandAuthError,
   searchLeadCommandLeads,
+  type PortalVegaLeadInput,
 } from "./lead-command-client";
 
 type OnboardingResponseInput = {
@@ -38,6 +39,7 @@ type VegaProjectInput = {
 
 type VegaLeadRecord = {
   id: string;
+  queryId: string | null;
   company: string;
   contact: string;
   title: string;
@@ -153,7 +155,7 @@ export async function getClientVegaData(organizationId: string) {
       db.vegaLead.findMany({
         where: { organizationId },
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 200,
       }),
       db.vegaLeadQuery.findMany({
         where: { organizationId },
@@ -202,6 +204,7 @@ export async function getClientVegaData(organizationId: string) {
 
 function buildStoredLeadRecord(lead: {
   id: string;
+  queryId: string | null;
   company: string;
   contactName: string | null;
   title: string | null;
@@ -225,6 +228,7 @@ function buildStoredLeadRecord(lead: {
 
   return {
     id: lead.id,
+    queryId: lead.queryId,
     company: lead.company,
     contact: lead.contactName ?? "Contact pending",
     title: lead.title ?? "Decision maker",
@@ -336,21 +340,36 @@ export async function createVegaLeadQuery(input: {
   }
 
   return db.$transaction(async (tx) => {
+    const existingLeads = await tx.vegaLead.findMany({
+      where: { organizationId: input.organizationId },
+      select: {
+        company: true,
+        email: true,
+        phone: true,
+        website: true,
+      },
+    });
+    const uniqueLeads = deduplicateVegaLeads(searchResult.leads, existingLeads);
+    const duplicateCount = searchResult.leads.length - uniqueLeads.length;
+    const status =
+      searchResult.leads.length > 0 && uniqueLeads.length === 0
+        ? "NO_NEW_LEADS"
+        : "COMPLETED";
     const query = await tx.vegaLeadQuery.create({
       data: {
         organizationId: input.organizationId,
         requestedById: input.requestedById,
         prompt: input.prompt,
-        status: "COMPLETED",
+        status,
         source: searchResult.source,
-        resultCount: searchResult.leads.length,
+        resultCount: uniqueLeads.length,
         completedAt: new Date(),
       },
     });
 
-    if (searchResult.leads.length) {
+    if (uniqueLeads.length) {
       await tx.vegaLead.createMany({
-        data: searchResult.leads.map((lead) => ({
+        data: uniqueLeads.map((lead) => ({
           organizationId: input.organizationId,
           queryId: query.id,
           ...lead,
@@ -363,7 +382,14 @@ export async function createVegaLeadQuery(input: {
         organizationId: input.organizationId,
         type: "vega.leads_pulled",
         title: "Vega lead request completed",
-        body: searchResult.message,
+        body: [
+          searchResult.message,
+          duplicateCount
+            ? `${duplicateCount} existing or repeated lead${duplicateCount === 1 ? " was" : "s were"} excluded.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
       },
     });
 
@@ -376,13 +402,68 @@ export async function createVegaLeadQuery(input: {
         metadata: {
           organizationId: input.organizationId,
           provider: searchResult.provider,
-          resultCount: searchResult.leads.length,
+          resultCount: uniqueLeads.length,
+          sourceResultCount: searchResult.leads.length,
+          duplicateCount,
         },
       },
     });
 
     return query;
   });
+}
+
+type VegaLeadIdentity = Pick<
+  PortalVegaLeadInput,
+  "company" | "email" | "phone" | "website"
+>;
+
+export function deduplicateVegaLeads<T extends VegaLeadIdentity>(
+  candidates: T[],
+  existing: VegaLeadIdentity[] = [],
+) {
+  const seen = new Set(existing.flatMap(buildLeadIdentityTokens));
+
+  return candidates.filter((candidate) => {
+    const tokens = buildLeadIdentityTokens(candidate);
+    if (tokens.some((token) => seen.has(token))) return false;
+    tokens.forEach((token) => seen.add(token));
+    return true;
+  });
+}
+
+function buildLeadIdentityTokens(lead: VegaLeadIdentity) {
+  const company = normalizeIdentityText(lead.company);
+  const email = lead.email?.trim().toLowerCase();
+  const phone = lead.phone?.replace(/\D/g, "").slice(-10);
+  const website = normalizeWebsiteHost(lead.website);
+
+  return [
+    company ? `company:${company}` : null,
+    email ? `email:${email}` : null,
+    phone && phone.length >= 7 ? `phone:${phone}` : null,
+    website ? `website:${website}` : null,
+  ].filter((token): token is string => Boolean(token));
+}
+
+function normalizeIdentityText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\b(?:llc|inc|incorporated|corp|corporation|company|co)\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeWebsiteHost(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(value) ? value : `https://${value}`,
+    );
+    return url.hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
 
 export function buildVegaSnapshot(input: {
@@ -410,7 +491,7 @@ export function buildVegaSnapshot(input: {
   const leadSignals = buildLeadSignals(projectSignals, openActions);
   const generatedLeadRecords = buildLeadRecords(leadSignals);
   const leadRecords = input.storedLeads?.length
-    ? input.storedLeads
+    ? deduplicateVegaLeads(input.storedLeads)
     : input.useGeneratedLeadFallback === false
       ? []
       : generatedLeadRecords;
@@ -581,6 +662,7 @@ function buildLeadRecords(
   return leadSignals.length
     ? leadSignals.map((lead, index) => ({
         id: `generated-${index}`,
+        queryId: null,
         company: lead.name.replace(/ opportunity$/i, ""),
         contact: ["Operations Lead", "Growth Director", "Founder"][index % 3],
         title: ["Decision maker", "Budget owner", "Primary evaluator"][
@@ -603,6 +685,7 @@ function buildLeadRecords(
     : [
         {
           id: "setup-placeholder",
+          queryId: null,
           company: "No Vega lead list connected",
           contact: "Lead source pending",
           title: "Import or query leads",
@@ -680,6 +763,10 @@ function queryGuidance(input: {
 
   if (input.status === "FAILED") {
     return "Lead Command could not complete this source request. Try again or broaden the audience.";
+  }
+
+  if (input.status === "NO_NEW_LEADS") {
+    return "Vega found matching records, but they were already saved in this workspace, so no duplicates were added.";
   }
 
   if (input.resultCount === 0) {

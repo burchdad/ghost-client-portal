@@ -29,25 +29,34 @@ export const dynamic = "force-dynamic";
 export default async function VegaPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string; notice?: string }>;
+  searchParams?: Promise<{
+    error?: string;
+    notice?: string;
+    scope?: "latest" | "all";
+  }>;
 }) {
   const { organization } = await requireClientWorkspace();
   const { snapshot } = await getClientVegaData(organization.id);
   const message = (await searchParams) ?? {};
+  const scope =
+    "scope" in message && message.scope === "all" ? "all" : "latest";
   const latestQuery = snapshot.queries[0];
+  const latestLeadRecords = latestQuery
+    ? snapshot.leadRecords.filter((lead) => lead.queryId === latestQuery.id)
+    : snapshot.leadRecords;
+  const displayedLeads =
+    scope === "all" ? snapshot.leadRecords : latestLeadRecords;
   const sourceAuthIssue = latestQuery?.status === "AUTH_FAILED";
-  const readyLeads = snapshot.leadRecords.filter((lead) =>
+  const readyLeads = displayedLeads.filter((lead) =>
     ["READY_FOR_OUTREACH", "QUALIFIED", "ENGAGED"].includes(lead.stage),
   );
-  const emailReadyLeads = snapshot.leadRecords.filter((lead) =>
+  const emailReadyLeads = displayedLeads.filter((lead) =>
     lead.emailStatus.toLowerCase().includes("ready"),
   );
-  const averageIntent = snapshot.leadRecords.length
+  const averageIntent = displayedLeads.length
     ? Math.round(
-        snapshot.leadRecords.reduce(
-          (total, lead) => total + lead.intentScore,
-          0,
-        ) / snapshot.leadRecords.length,
+        displayedLeads.reduce((total, lead) => total + lead.intentScore, 0) /
+          displayedLeads.length,
       )
     : 0;
 
@@ -71,8 +80,8 @@ export default async function VegaPage({
         metrics={[
           {
             label: "Prospects",
-            value: String(snapshot.leadRecords.length),
-            detail: "Stored in this workspace",
+            value: String(displayedLeads.length),
+            detail: scope === "all" ? "All saved leads" : "Latest request",
           },
           {
             label: "Outreach ready",
@@ -183,7 +192,7 @@ export default async function VegaPage({
             </div>
             <StatusBadge
               tone={
-                latestQuery.status === "COMPLETED"
+                ["COMPLETED", "NO_NEW_LEADS"].includes(latestQuery.status)
                   ? "accent"
                   : latestQuery.status === "AUTH_FAILED"
                     ? "warning"
@@ -198,23 +207,44 @@ export default async function VegaPage({
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.62fr]">
         <SectionPanel
-          title="Lead pipeline"
+          title={scope === "all" ? "All saved leads" : "Latest request leads"}
           eyebrow="Qualified prospects"
           aside={
-            <StatusBadge tone="accent">{readyLeads.length} active</StatusBadge>
+            <div className="flex items-center gap-2">
+              <a
+                href="/vega"
+                className={`rounded-md border px-3 py-1.5 text-xs ${scope === "latest" ? "border-accent text-accent" : "border-line text-muted"}`}
+              >
+                Latest pull
+              </a>
+              <a
+                href="/vega?scope=all"
+                className={`rounded-md border px-3 py-1.5 text-xs ${scope === "all" ? "border-accent text-accent" : "border-line text-muted"}`}
+              >
+                All saved
+              </a>
+            </div>
           }
         >
-          {snapshot.leadRecords.length ? (
+          {displayedLeads.length ? (
             <div className="grid gap-4">
-              {snapshot.leadRecords.map((lead) => (
+              {displayedLeads.map((lead) => (
                 <LeadCard key={lead.id} lead={lead} />
               ))}
             </div>
           ) : (
             <EmptyWorkspace
               icon={Search}
-              title="No sourced leads yet"
-              body="Send Vega a lead request with a clear industry, geography, buyer role, and outreach goal. Qualified records will populate here."
+              title={
+                scope === "all"
+                  ? "No sourced leads yet"
+                  : "No new leads in this request"
+              }
+              body={
+                scope === "all"
+                  ? "Send Vega a lead request with a clear industry, geography, buyer role, and outreach goal. Qualified records will populate here."
+                  : "Vega did not add a new record from the latest pull. Existing matches remain available under All saved."
+              }
               steps={[
                 "Ask for a specific market",
                 "Review contact confidence",

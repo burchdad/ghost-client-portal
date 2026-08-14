@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireClientWorkspace } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db";
+import { deduplicateVegaLeads } from "@/server/vega/service";
 
 export async function GET() {
   const { organization } = await requireClientWorkspace();
-  const leads = await getDb().vegaLead.findMany({
-    where: { organizationId: organization.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const leads = deduplicateVegaLeads(
+    await getDb().vegaLead.findMany({
+      where: { organizationId: organization.id },
+      orderBy: { createdAt: "desc" },
+    }),
+  );
   const rows = [
     [
       "Company",

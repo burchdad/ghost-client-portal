@@ -44,6 +44,13 @@ export async function createVegaLeadQueryAction(formData: FormData) {
     );
   }
 
+  if (query.status === "NO_NEW_LEADS") {
+    redirectWith(
+      "notice",
+      "Vega found matching leads, but they were already in this workspace. No duplicates were added.",
+    );
+  }
+
   if (query.resultCount === 0) {
     redirectWith(
       "notice",
