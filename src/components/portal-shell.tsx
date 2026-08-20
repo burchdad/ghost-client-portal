@@ -63,7 +63,7 @@ export function PortalShell({
 }) {
   const nav = mode === "admin" ? adminNav : clientNav;
   const homeHref = mode === "admin" ? "/admin" : "/dashboard";
-  const label = mode === "admin" ? "Portal Admin" : "Client Portal";
+  const label = mode === "admin" ? "Portal Admin" : "Command Center";
 
   return (
     <div className="min-h-dvh bg-background">
@@ -74,7 +74,9 @@ export function PortalShell({
           </p>
           <p className="mt-1 text-xl font-semibold">{label}</p>
           <p className="mt-2 text-xs text-muted">
-            {mode === "admin" ? "Internal operations" : "Workspace command"}
+            {mode === "admin"
+              ? "Internal operations"
+              : "Client Portal"}
           </p>
         </Link>
         <nav className="mt-8 space-y-1" aria-label={`${label} navigation`}>

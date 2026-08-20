@@ -15,8 +15,63 @@ export function PageHero({
   metrics?: { label: string; value: string; detail?: string }[];
 }) {
   return (
+    <section className="panel-surface overflow-hidden rounded-lg border border-line shadow-2xl shadow-black/10">
+      <div className="border-b border-white/5 bg-white/[0.018] px-6 py-5">
+        <p className="text-xs uppercase tracking-[0.24em] text-accent">
+          {eyebrow}
+        </p>
+      </div>
+      <div className="flex flex-col gap-6 p-6 xl:flex-row xl:items-end xl:justify-between">
+        <div className="max-w-4xl">
+          <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
+            {title}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">{body}</p>
+          {actions ? (
+            <div className="mt-5 flex flex-wrap gap-2">{actions}</div>
+          ) : null}
+        </div>
+        {metrics?.length ? (
+          <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-[34rem] xl:shrink-0">
+            {metrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="min-h-24 min-w-0 rounded-md border border-line bg-black/15 px-4 py-3"
+              >
+                <p className="text-xs text-muted">{metric.label}</p>
+                <p className="mt-1 break-words text-xl font-semibold leading-tight md:text-2xl">
+                  {metric.value}
+                </p>
+                {metric.detail ? (
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {metric.detail}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+export function FeatureHero({
+  eyebrow,
+  title,
+  body,
+  actions,
+  metrics,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  actions?: ReactNode;
+  metrics?: { label: string; value: string; detail?: string }[];
+}) {
+  return (
     <section className="panel-surface rounded-lg border border-line p-6 shadow-2xl shadow-black/10">
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="max-w-3xl">
           <p className="text-sm uppercase tracking-[0.24em] text-accent">
             {eyebrow}
@@ -34,10 +89,10 @@ export function PageHero({
             {metrics.map((metric) => (
               <div
                 key={metric.label}
-                className="min-w-0 rounded-md border border-line bg-black/15 px-4 py-3"
+                className="min-h-24 min-w-0 rounded-md border border-line bg-black/15 px-4 py-3"
               >
                 <p className="text-xs text-muted">{metric.label}</p>
-                <p className="mt-1 text-xl font-semibold leading-tight md:text-2xl">
+                <p className="mt-1 break-words text-xl font-semibold leading-tight md:text-2xl">
                   {metric.value}
                 </p>
                 {metric.detail ? (
@@ -73,7 +128,7 @@ export function MetricCard({
           : "border-line bg-panel";
 
   return (
-    <div className={`rounded-lg border p-5 ${toneClass}`}>
+    <div className={`min-h-32 rounded-lg border p-5 ${toneClass}`}>
       <p className="text-sm text-muted">{label}</p>
       <p className="mt-2 text-3xl font-semibold">{value}</p>
       <p className="mt-2 text-sm leading-5 text-muted">{detail}</p>
