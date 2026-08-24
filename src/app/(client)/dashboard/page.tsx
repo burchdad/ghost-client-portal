@@ -10,6 +10,7 @@ import {
   Megaphone,
   MessageSquareText,
   Sparkles,
+  Users,
   WalletCards,
 } from "lucide-react";
 import {
@@ -70,6 +71,14 @@ export default async function DashboardPage() {
       tone: "accent" as const,
     },
     {
+      icon: Users,
+      title: "CRM",
+      href: "/crm",
+      body: "Work sourced leads through qualification, outreach, replies, and closed outcomes.",
+      status: "Pipeline",
+      tone: "signal" as const,
+    },
+    {
       icon: Compass,
       title: "GEO",
       href: "/geo",
@@ -110,10 +119,10 @@ export default async function DashboardPage() {
         actions={
           <>
             <Link
-              href="/vega"
+              href="/crm"
               className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-slate-950"
             >
-              Open Vega
+              Open CRM
               <ArrowRight size={16} aria-hidden />
             </Link>
             <Link
@@ -284,7 +293,7 @@ export default async function DashboardPage() {
       </section>
 
       <SectionPanel title="Ghost systems" eyebrow="Client-safe outputs">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {systemModules.map((module) => (
             <ModuleCard key={module.title} {...module} />
           ))}

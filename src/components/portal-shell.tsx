@@ -13,6 +13,7 @@ import {
   Sparkles,
   Settings,
   Shield,
+  Users,
   WalletCards,
 } from "lucide-react";
 import { logoutAction } from "@/app/actions";
@@ -21,6 +22,7 @@ import type { AuthenticatedUser } from "@/lib/auth/session";
 const clientNav = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/vega", label: "Vega", icon: Sparkles },
+  { href: "/crm", label: "CRM", icon: Users },
   { href: "/geo", label: "GEO", icon: Compass },
   { href: "/echo", label: "Echo", icon: Megaphone },
   { href: "/projects", label: "Projects", icon: FolderKanban },
