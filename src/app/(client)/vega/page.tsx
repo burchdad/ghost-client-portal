@@ -5,10 +5,10 @@ import {
   Mail,
   Phone,
   Search,
-  Send,
   ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { VegaPullButton } from "@/components/vega-pull-button";
 import {
   EmptyWorkspace,
   MetricCard,
@@ -25,6 +25,7 @@ import {
 } from "./actions";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export default async function VegaPage({
   searchParams,
@@ -42,7 +43,11 @@ export default async function VegaPage({
     "scope" in message && message.scope === "all" ? "all" : "latest";
   const latestQuery = snapshot.queries[0];
   const latestLeadRecords = latestQuery
-    ? snapshot.leadRecords.filter((lead) => lead.queryId === latestQuery.id)
+    ? snapshot.leadRecords.filter((lead) =>
+        latestQuery.leadIds?.length
+          ? latestQuery.leadIds.includes(lead.id)
+          : lead.queryId === latestQuery.id,
+      )
     : snapshot.leadRecords;
   const displayedLeads =
     scope === "all" ? snapshot.leadRecords : latestLeadRecords;
@@ -50,9 +55,7 @@ export default async function VegaPage({
   const readyLeads = displayedLeads.filter((lead) =>
     ["READY_FOR_OUTREACH", "QUALIFIED", "ENGAGED"].includes(lead.stage),
   );
-  const emailReadyLeads = displayedLeads.filter((lead) =>
-    lead.emailStatus.toLowerCase().includes("ready"),
-  );
+  const callableLeads = displayedLeads.filter((lead) => Boolean(lead.phone));
   const averageIntent = displayedLeads.length
     ? Math.round(
         displayedLeads.reduce((total, lead) => total + lead.intentScore, 0) /
@@ -84,12 +87,12 @@ export default async function VegaPage({
             detail: scope === "all" ? "All saved leads" : "Latest request",
           },
           {
-            label: "Outreach ready",
-            value: String(emailReadyLeads.length),
-            detail: "Have a contact path",
+            label: "Business phones",
+            value: String(callableLeads.length),
+            detail: "Available for manual follow-up",
           },
           {
-            label: "Avg intent",
+            label: "Avg fit",
             value: String(averageIntent),
             detail: "Fit and readiness score",
           },
@@ -152,17 +155,38 @@ export default async function VegaPage({
               id="vega-lead-query"
               name="prompt"
               className="mt-2 min-h-28 w-full rounded-md border border-line bg-background px-4 py-3 text-sm leading-6 outline-none focus:border-accent"
-              defaultValue={snapshot.queryPresets[0]?.query}
-              placeholder="Example: Pull 10 HVAC companies in Houston, Texas that need a stronger website and have owner contact paths."
+              placeholder="Example: HVAC businesses in Houston, Texas with a business phone number."
             />
           </div>
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-slate-950"
-          >
-            <Send size={16} aria-hidden />
-            Send Request
-          </button>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm text-muted">
+              Results
+              <select
+                name="count"
+                defaultValue="50"
+                className="mt-2 block rounded-md border border-line bg-background px-3 py-3 text-foreground"
+              >
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <VegaPullButton />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="callReady" defaultChecked />
+            Call-ready businesses
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="multiSource" defaultChecked />
+            Use additional connected sources
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="includeExisting" />
+            Include previously supplied leads
+          </label>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-3">
           {snapshot.queryPresets.map((preset) => (
@@ -374,13 +398,18 @@ function LeadCard({
             <StatusBadge tone="accent">{lead.segment}</StatusBadge>
             <StatusBadge>{humanizeEnum(lead.stage)}</StatusBadge>
             <StatusBadge tone={lead.intentScore >= 80 ? "accent" : "default"}>
-              Intent {lead.intentScore}
+              Fit {lead.intentScore}
             </StatusBadge>
           </div>
           <h3 className="mt-3 text-2xl font-semibold">{lead.company}</h3>
           <p className="mt-2 text-sm text-muted">
             {lead.contact} - {lead.title}
           </p>
+          {lead.notes?.match(/^Business location: (.+)$/m)?.[1] ? (
+            <p className="mt-1 text-sm text-muted">
+              {lead.notes.match(/^Business location: (.+)$/m)?.[1]}
+            </p>
+          ) : null}
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
             {lead.nextStep}
           </p>
@@ -404,12 +433,23 @@ function LeadCard({
           <ContactSignal
             icon={Mail}
             label="Email"
-            value={hasEmail ? lead.email : lead.emailStatus}
+            value={
+              hasEmail ? (
+                <span>
+                  {lead.email}
+                  <span className="block text-xs text-muted">
+                    Verification required before sending
+                  </span>
+                </span>
+              ) : (
+                lead.emailStatus
+              )
+            }
             active={hasEmail}
           />
           <ContactSignal
             icon={Phone}
-            label="Phone"
+            label="Business phone"
             value={
               hasPhone ? (
                 <a href={`tel:${lead.phone}`} className="hover:text-accent">

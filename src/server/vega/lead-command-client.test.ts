@@ -9,6 +9,21 @@ import {
 } from "./lead-command-client";
 
 describe("Lead Command client", () => {
+  it("distinguishes an exhausted market from a provider failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          leads: [],
+          message: "No qualified matches in this market.",
+        }),
+      ),
+    );
+    const result = await searchLeadCommandLeads("HVAC near Tyler");
+    expect(result.report?.errors).toEqual([]);
+    expect(result.report?.stopReason).toBe("sources-exhausted");
+    expect(result.message).toContain("No qualified matches");
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -222,7 +237,13 @@ describe("Lead Command client", () => {
         "Find Facebook business locations for HVAC companies near Tyler",
       ),
     ).toBe("facebook-business");
-    expect(inferRequestedLeadCount("Vega, pull 75 prospects")).toBe(50);
+    expect(inferRequestedLeadCount("Vega, pull 75 prospects")).toBe(75);
+    expect(
+      inferRequestedLeadCount("Find businesses within 20 miles of Tyler"),
+    ).toBe(50);
+    expect(
+      inferRequestedLeadCount("Find 100 leads within 20 miles of Tyler"),
+    ).toBe(100);
     expect(
       inferLeadLocation(
         "Need 20 HVAC leads in Tyler, Texas and surrounding cities within 40 mile range",
@@ -231,5 +252,135 @@ describe("Lead Command client", () => {
     expect(
       inferLeadCommandQuery("commercial window cleaning and exterior cleaning"),
     ).toContain("property managers");
+  });
+
+  it.each([50, 100])(
+    "fills %i call-ready results across pages after excluding existing leads",
+    async (count) => {
+      const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.location).toBe("Tyler, Texas");
+        expect(body.workspaceSlug).toBe("ghost-ai-solutions");
+        expect(body.mode).toBe("call-ready");
+        const page = Number(body.scrollToken || 0) / 20;
+        return Response.json({
+          scrollToken: String((page + 1) * 20),
+          reviewLeads: Array.from({ length: 20 }, (_, i) => ({
+            companyName: `Business ${page * 20 + i}`,
+            phone: `903555${String(page * 20 + i).padStart(4, "0")}`,
+            score: 75,
+          })),
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const result = await searchLeadCommandLeads(
+        "HVAC businesses near Tyler, Texas",
+        {
+          count,
+          callReady: true,
+          workspaceSlug: "ghost-ai-solutions",
+          existing: Array.from({ length: 20 }, (_, i) => ({
+            company: `Business ${i}`,
+            email: null,
+            phone: null,
+            website: null,
+          })),
+        },
+      );
+      expect(result.leads).toHaveLength(count);
+      expect(result.leads[0].company).toBe("Business 20");
+      expect(
+        result.leads.every(
+          (lead) => !lead.email && lead.status === "QUALIFIED",
+        ),
+      ).toBe(true);
+      expect(result.report?.duplicates).toBe(20);
+      expect(result.report?.stopReason).toBe("target-reached");
+    },
+  );
+
+  it("deduplicates across sources, preserves the market, and reports a shortfall", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.location).toBe("Tyler, Texas");
+        if (body.provider === "apollo")
+          return new Response("unavailable", { status: 503 });
+        return Response.json({
+          leads: [{ companyName: "Example HVAC", phone: "9035550100" }],
+        });
+      }),
+    );
+    const result = await searchLeadCommandLeads("HVAC near Tyler, Texas", {
+      count: 50,
+      multiSource: true,
+      callReady: true,
+    });
+    expect(result.leads).toHaveLength(1);
+    expect(result.report?.duplicates).toBe(1);
+    expect(result.report?.errors).toHaveLength(1);
+    expect(result.report?.stopReason).toBe("source-limited");
+  });
+
+  it("stops repeated cursors and rejects mock data and unusable phone numbers", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        scrollToken: "20",
+        leads: [{ companyName: "No Phone", phone: "123" }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await searchLeadCommandLeads("HVAC near Tyler", {
+      callReady: true,
+    });
+    expect(result.leads).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          dryRun: true,
+          leads: [{ companyName: "Sample", phone: "9035550100" }],
+        }),
+      ),
+    );
+    expect((await searchLeadCommandLeads("HVAC near Tyler")).leads).toEqual([]);
+  });
+
+  it("enforces the page budget even when a provider never exhausts", async () => {
+    let page = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ leads: [], scrollToken: String(++page) }),
+      ),
+    );
+    const result = await searchLeadCommandLeads("founders in Texas", {
+      count: 100,
+    });
+    expect(result.report?.batches).toBe(12);
+    expect(result.report?.stopReason).toBe("request-budget-reached");
+  });
+
+  it("can include an existing business without returning it twice", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          leads: [
+            { companyName: "Example", phone: "9035550100" },
+            { companyName: "Example LLC", phone: "+1 903-555-0100" },
+          ],
+        }),
+      ),
+    );
+    const result = await searchLeadCommandLeads("HVAC near Tyler", {
+      includeExisting: true,
+      existing: [
+        { company: "Example", email: null, phone: null, website: null },
+      ],
+    });
+    expect(result.leads).toHaveLength(1);
   });
 });

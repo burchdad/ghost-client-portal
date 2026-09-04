@@ -1,9 +1,7 @@
+import { leadIdentityTokens, type LeadIdentity } from "./lead-identity";
+
 type LeadCommandProvider =
-  | "pdl"
-  | "apollo"
-  | "ghost-lead-agent"
-  | "google-maps"
-  | "facebook-business";
+  "pdl" | "apollo" | "ghost-lead-agent" | "google-maps" | "facebook-business";
 
 export type PortalVegaLeadInput = {
   company: string;
@@ -33,7 +31,7 @@ type LeadCommandLead = {
   website?: string;
   sourceUrl?: string;
   score?: number;
-  confidence?: number;
+  confidence?: number | string;
   buyerFit?: string;
   intentSignals?: string[];
   signalSummary?: string;
@@ -43,6 +41,7 @@ type LeadCommandSearchResponse = {
   provider?: LeadCommandProvider;
   dryRun?: boolean;
   total?: number;
+  scrollToken?: string | null;
   message?: string;
   leads?: LeadCommandLead[];
   reviewLeads?: LeadCommandLead[];
@@ -57,6 +56,15 @@ export type LeadCommandSearchResult = {
   source: string;
   message: string;
   leads: PortalVegaLeadInput[];
+  report?: {
+    requested: number;
+    batches: number;
+    duplicates: number;
+    missingPhone: number;
+    skipped: Record<string, number>;
+    errors: string[];
+    stopReason: string;
+  };
 };
 
 export class LeadCommandAuthError extends Error {
@@ -68,35 +76,155 @@ export class LeadCommandAuthError extends Error {
 
 export async function searchLeadCommandLeads(
   prompt: string,
+  options: {
+    count?: number;
+    callReady?: boolean;
+    workspaceSlug?: string;
+    existing?: LeadIdentity[];
+    includeExisting?: boolean;
+    multiSource?: boolean;
+  } = {},
 ): Promise<LeadCommandSearchResult> {
   const provider = inferLeadCommandProvider(prompt);
-  const size = inferRequestedLeadCount(prompt);
+  const size = Math.min(
+    100,
+    Math.max(1, Math.floor(options.count || inferRequestedLeadCount(prompt))),
+  );
   const location = inferLeadLocation(prompt);
+  if (
+    options.callReady &&
+    location === "United States" &&
+    !/united states|nationwide|\busa\b|\bu\.s\./i.test(prompt)
+  ) {
+    throw new Error(
+      "Specify the city, state, or territory for this calling list.",
+    );
+  }
   const query = inferLeadCommandQuery(prompt);
-  const response = await fetchLeadCommandSearch({
-    provider,
-    query,
-    location,
-    size,
-  });
-  const rawLeads = [
-    ...(response.leads ?? []),
-    ...(response.reviewLeads ?? []),
-  ].slice(0, size);
-  const leads = rawLeads
-    .map((lead) => mapLeadCommandLead(lead, provider, prompt))
-    .filter((lead): lead is PortalVegaLeadInput => Boolean(lead));
-  const diagnosticSummary = summarizeDiagnostics(response);
-  const message =
-    response.message ??
-    diagnosticSummary ??
-    `Lead Command returned ${leads.length} ${provider} records.`;
+  const providers = options.multiSource
+    ? Array.from(new Set<LeadCommandProvider>([provider, "apollo", "pdl"]))
+    : [provider];
+  const seen = new Set(
+    (options.includeExisting ? [] : options.existing || []).flatMap(
+      leadIdentityTokens,
+    ),
+  );
+  const leads: PortalVegaLeadInput[] = [];
+  const contributingSources = new Set<LeadCommandProvider>();
+  const sourceNotes: string[] = [];
+  const report = {
+    requested: size,
+    batches: 0,
+    duplicates: 0,
+    missingPhone: 0,
+    skipped: {} as Record<string, number>,
+    errors: [] as string[],
+    stopReason: "sources-exhausted",
+  };
+  const deadline = Date.now() + 210_000;
+  for (const source of providers) {
+    let scrollToken: string | undefined;
+    const cursors = new Set<string>();
+    do {
+      if (report.batches >= 12 || Date.now() >= deadline) {
+        report.stopReason = "request-budget-reached";
+        break;
+      }
+      report.batches++;
+      let response: LeadCommandSearchResponse;
+      try {
+        response = await fetchLeadCommandSearch({
+          provider: source,
+          query,
+          location,
+          size,
+          scrollToken,
+          mode: options.callReady ? "call-ready" : undefined,
+          workspaceSlug: options.workspaceSlug,
+        });
+      } catch (error) {
+        if (error instanceof LeadCommandAuthError) throw error;
+        report.errors.push(
+          `${source}: ${error instanceof Error ? error.message : "Source unavailable"}`,
+        );
+        break;
+      }
+      if (response.dryRun) {
+        report.errors.push(
+          `${source}: Live source is not configured; sample data was rejected.`,
+        );
+        break;
+      }
+      for (const [reason, count] of Object.entries(
+        response.diagnostics?.skipped || {},
+      ))
+        report.skipped[reason] = (report.skipped[reason] || 0) + count;
+      for (const raw of [
+        ...(response.leads || []),
+        ...(response.reviewLeads || []),
+      ]) {
+        const lead = mapLeadCommandLead(raw, source, prompt);
+        if (!lead) continue;
+        if (
+          options.callReady &&
+          !/^\d{10,15}$/.test((lead.phone || "").replace(/\D/g, ""))
+        ) {
+          report.missingPhone++;
+          continue;
+        }
+        const tokens = leadIdentityTokens(lead);
+        if (tokens.some((token) => seen.has(token))) {
+          report.duplicates++;
+          continue;
+        }
+        tokens.forEach((token) => seen.add(token));
+        leads.push(lead);
+        contributingSources.add(source);
+        if (leads.length >= size) break;
+      }
+      if (
+        response.message &&
+        !(response.leads?.length || response.reviewLeads?.length)
+      ) {
+        const details = `${source}: ${response.message}`;
+        if (
+          /not configured|returned [45]\d{2}|failed|error|quota|exceeded|unauthorized/i.test(
+            response.message,
+          )
+        )
+          report.errors.push(details);
+        else sourceNotes.push(details);
+      }
+      const next = response.scrollToken;
+      if (!next || cursors.has(next)) break;
+      cursors.add(next);
+      scrollToken = next;
+    } while (leads.length < size);
+    if (leads.length >= size || report.stopReason === "request-budget-reached")
+      break;
+  }
+  if (leads.length >= size) report.stopReason = "target-reached";
+  else if (
+    report.errors.length &&
+    report.stopReason !== "request-budget-reached"
+  )
+    report.stopReason = "source-limited";
+  const skippedSummary = Object.entries({
+    ...report.skipped,
+    "missing-usable-phone":
+      (report.skipped["missing-usable-phone"] || 0) + report.missingPhone,
+  })
+    .filter(([, count]) => count > 0)
+    .map(([reason, count]) => `${count} ${reason.replaceAll("-", " ")}`)
+    .join(", ");
+  const message = `Requested ${size}, returned ${leads.length}. ${report.duplicates} duplicates excluded.${skippedSummary ? ` Excluded: ${skippedSummary}.` : ""} ${report.stopReason.replaceAll("-", " ")}.${report.errors.length ? ` ${report.errors.join(" ")}` : ""}${sourceNotes.length ? ` ${sourceNotes.join(" ")}` : ""}`;
 
   return {
     provider,
-    source: `lead_command:${provider}`,
+    source: `lead_command:${contributingSources.size ? [...contributingSources].join("+") : provider}`,
     message,
     leads,
+    report,
   };
 }
 
@@ -105,6 +233,9 @@ async function fetchLeadCommandSearch(input: {
   query: string;
   location: string;
   size: number;
+  scrollToken?: string;
+  mode?: "call-ready";
+  workspaceSlug?: string;
 }) {
   const baseUrl =
     process.env.LEAD_COMMAND_BASE_URL ?? "https://leadgen.ghostai.solutions";
@@ -126,6 +257,7 @@ async function fetchLeadCommandSearch(input: {
     headers,
     body: JSON.stringify(input),
     cache: "no-store",
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!response.ok) {
@@ -146,6 +278,8 @@ async function fetchLeadCommandSearch(input: {
 
 export function inferLeadCommandProvider(prompt: string): LeadCommandProvider {
   const normalized = prompt.toLowerCase();
+  if (/\bapollo\b/.test(normalized)) return "apollo";
+  if (/\bpdl\b|people data labs/.test(normalized)) return "pdl";
 
   if (
     normalized.includes("facebook") ||
@@ -192,11 +326,17 @@ export function inferLeadCommandProvider(prompt: string): LeadCommandProvider {
 }
 
 export function inferRequestedLeadCount(prompt: string) {
-  const match = prompt.match(/\b(?:need|pull|find|get|source)?\s*(\d{1,3})\b/i);
-  const parsed = match ? Number(match[1]) : 10;
+  const match =
+    prompt.match(
+      /\b(?:need|pull|find|get|source)\s+(\d{1,3})\s+(?!miles?\b|km\b)/i,
+    ) ||
+    prompt.match(
+      /\b(\d{1,3})\s+(?:leads?|prospects?|results?|businesses|companies|contacts?)\b/i,
+    );
+  const parsed = match ? Number(match[1]) : 50;
 
-  if (!Number.isFinite(parsed)) return 10;
-  return Math.max(1, Math.min(parsed, 50));
+  if (!Number.isFinite(parsed)) return 50;
+  return Math.max(1, Math.min(parsed, 100));
 }
 
 export function inferLeadLocation(prompt: string) {
@@ -275,8 +415,11 @@ function mapLeadCommandLead(
     lead.buyerFit ? `Buyer fit: ${lead.buyerFit}` : null,
     lead.sourceUrl ? `Source profile: ${lead.sourceUrl}` : null,
     website ? `Company website: ${website}` : null,
-    phone ? `Phone path: ${phone}` : null,
-    email ? `Verified email: ${email}` : null,
+    phone
+      ? `Business phone: ${phone}; direct decision-maker number not verified.`
+      : null,
+    lead.location ? `Business location: ${lead.location}` : null,
+    email ? `Source email (verify before sending): ${email}` : null,
     typeof lead.confidence === "number"
       ? `Source confidence: ${lead.confidence}`
       : null,
@@ -290,8 +433,14 @@ function mapLeadCommandLead(
 
   return {
     company,
-    contactName: lead.name && lead.name !== company ? lead.name : null,
-    title: lead.title ?? null,
+    contactName:
+      lead.name && lead.name !== company && !/^Team at /i.test(lead.name)
+        ? lead.name
+        : null,
+    title:
+      lead.title === "Owner or Growth Operator"
+        ? "Decision-maker not identified"
+        : (lead.title ?? null),
     email,
     phone,
     website,
@@ -312,20 +461,6 @@ function mapLeadCommandLead(
           ? "Research owner or verified email from company website."
           : "Enrich contact path before outreach.",
   };
-}
-
-function summarizeDiagnostics(response: LeadCommandSearchResponse) {
-  const skipped = response.diagnostics?.skipped;
-  const errors = response.diagnostics?.errors;
-  const skippedSummary = skipped
-    ? Object.entries(skipped)
-        .filter(([, count]) => count > 0)
-        .map(([reason, count]) => `${reason} ${count}`)
-        .join(", ")
-    : "";
-  const errorSummary = errors?.length ? `errors: ${errors.join("; ")}` : "";
-
-  return [skippedSummary, errorSummary].filter(Boolean).join(" | ");
 }
 
 function cleanLocation(value: string) {

@@ -931,6 +931,9 @@ model VegaLeadQuery {
   status         String       @default("COMPLETED")
   source         String       @default("client_portal")
   resultCount    Int          @default(0)
+  requestedCount Int?
+  sourceReport   Json?
+  results        VegaLeadQueryResult[]
   completedAt    DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -962,9 +965,20 @@ model VegaLead {
   updatedAt      DateTime       @updatedAt
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   query          VegaLeadQuery? @relation(fields: [queryId], references: [id])
+  queryResults   VegaLeadQueryResult[]
 
   @@index([organizationId, status, createdAt])
   @@index([queryId])
+}
+
+model VegaLeadQueryResult {
+  queryId String
+  leadId  String
+  query   VegaLeadQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  lead    VegaLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([queryId, leadId])
+  @@index([leadId])
 }
 
 model Invitation {

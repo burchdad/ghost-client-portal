@@ -2,11 +2,12 @@ import type { ClientActionStatus } from "@prisma/client";
 import { isClientSafeActivity } from "@/server/activity/client-safe";
 import { calculateProjectProgress } from "@/server/projects/progress";
 import { getDb } from "@/lib/db";
+import { deduplicateVegaLeads, leadIdentityTokens } from "./lead-identity";
+export { deduplicateVegaLeads } from "./lead-identity";
 import {
   inferRequestedLeadCount,
   LeadCommandAuthError,
   searchLeadCommandLeads,
-  type PortalVegaLeadInput,
 } from "./lead-command-client";
 
 type OnboardingResponseInput = {
@@ -111,6 +112,7 @@ export type VegaSnapshot = {
     source: string;
     guidance: string;
     createdAt: Date;
+    leadIds?: string[];
   }[];
   engagement: {
     title: string;
@@ -159,6 +161,12 @@ export async function getClientVegaData(organizationId: string) {
       }),
       db.vegaLeadQuery.findMany({
         where: { organizationId },
+        include: {
+          results: {
+            where: { lead: { organizationId } },
+            include: { lead: true },
+          },
+        },
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
@@ -171,23 +179,40 @@ export async function getClientVegaData(organizationId: string) {
     snapshot: buildVegaSnapshot({
       projects,
       responses,
-      storedLeads: storedLeads.map((lead) => buildStoredLeadRecord(lead)),
+      storedLeads: Array.from(
+        new Map(
+          [
+            ...storedLeads,
+            ...queries.flatMap((query) =>
+              query.results.map((result) => result.lead),
+            ),
+          ].map((lead) => [lead.id, lead]),
+        ).values(),
+      ).map(buildStoredLeadRecord),
       queries: queries.map((query) => ({
         id: query.id,
         prompt: query.prompt,
         status: query.status,
         resultCount: query.resultCount,
-        requestedCount: inferRequestedLeadCount(query.prompt),
+        requestedCount:
+          query.requestedCount ?? inferRequestedLeadCount(query.prompt),
+        leadIds: query.results.map((result) => result.leadId),
         fulfillmentRate: fulfillmentRate(
           query.resultCount,
-          inferRequestedLeadCount(query.prompt),
+          query.requestedCount ?? inferRequestedLeadCount(query.prompt),
         ),
         source: query.source,
-        guidance: queryGuidance({
-          status: query.status,
-          resultCount: query.resultCount,
-          requestedCount: inferRequestedLeadCount(query.prompt),
-        }),
+        guidance:
+          query.sourceReport &&
+          typeof query.sourceReport === "object" &&
+          !Array.isArray(query.sourceReport) &&
+          typeof query.sourceReport.message === "string"
+            ? query.sourceReport.message
+            : queryGuidance({
+                status: query.status,
+                resultCount: query.resultCount,
+                requestedCount: inferRequestedLeadCount(query.prompt),
+              }),
         createdAt: query.createdAt,
       })),
       useGeneratedLeadFallback: false,
@@ -236,7 +261,7 @@ function buildStoredLeadRecord(lead: {
     stage: lead.status,
     intentScore: lead.intentScore,
     emailStatus: lead.email
-      ? "Verified email ready"
+      ? "Email found; verification required"
       : "Email blocked until verified",
     email: lead.email,
     phone: lead.phone,
@@ -285,12 +310,31 @@ export async function createVegaLeadQuery(input: {
   organizationId: string;
   requestedById: string;
   prompt: string;
+  count?: number;
+  includeExisting?: boolean;
+  callReady?: boolean;
+  multiSource?: boolean;
 }) {
   const db = getDb();
+  const organization = await db.organization.findUniqueOrThrow({
+    where: { id: input.organizationId },
+    select: { slug: true },
+  });
+  const count = input.count ?? inferRequestedLeadCount(input.prompt);
+  const existingBeforeSearch = await db.vegaLead.findMany({
+    where: { organizationId: input.organizationId },
+  });
   let searchResult: Awaited<ReturnType<typeof searchLeadCommandLeads>>;
 
   try {
-    searchResult = await searchLeadCommandLeads(input.prompt);
+    searchResult = await searchLeadCommandLeads(input.prompt, {
+      count,
+      workspaceSlug: organization.slug,
+      callReady: input.callReady ?? true,
+      multiSource: input.multiSource ?? true,
+      existing: existingBeforeSearch,
+      includeExisting: input.includeExisting,
+    });
   } catch (error) {
     const message =
       error instanceof Error
@@ -308,6 +352,8 @@ export async function createVegaLeadQuery(input: {
           status,
           source: "lead_command",
           resultCount: 0,
+          requestedCount: count,
+          sourceReport: { message },
           completedAt: new Date(),
         },
       });
@@ -339,131 +385,119 @@ export async function createVegaLeadQuery(input: {
     });
   }
 
-  return db.$transaction(async (tx) => {
-    const existingLeads = await tx.vegaLead.findMany({
-      where: { organizationId: input.organizationId },
-      select: {
-        company: true,
-        email: true,
-        phone: true,
-        website: true,
-      },
-    });
-    const uniqueLeads = deduplicateVegaLeads(searchResult.leads, existingLeads);
-    const duplicateCount = searchResult.leads.length - uniqueLeads.length;
-    const status =
-      searchResult.leads.length > 0 && uniqueLeads.length === 0
-        ? "NO_NEW_LEADS"
-        : "COMPLETED";
-    const query = await tx.vegaLeadQuery.create({
-      data: {
-        organizationId: input.organizationId,
-        requestedById: input.requestedById,
-        prompt: input.prompt,
-        status,
-        source: searchResult.source,
-        resultCount: uniqueLeads.length,
-        completedAt: new Date(),
-      },
-    });
-
-    if (uniqueLeads.length) {
-      await tx.vegaLead.createMany({
-        data: uniqueLeads.map((lead) => ({
-          organizationId: input.organizationId,
-          queryId: query.id,
-          ...lead,
-        })),
-      });
-    }
-
-    await tx.activityEvent.create({
-      data: {
-        organizationId: input.organizationId,
-        type: "vega.leads_pulled",
-        title: "Vega lead request completed",
-        body: [
-          searchResult.message,
-          duplicateCount
-            ? `${duplicateCount} existing or repeated lead${duplicateCount === 1 ? " was" : "s were"} excluded.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actorUserId: input.requestedById,
-        eventType: "vega.lead_query.created",
-        entityType: "VegaLeadQuery",
-        entityId: query.id,
-        metadata: {
-          organizationId: input.organizationId,
-          provider: searchResult.provider,
-          resultCount: uniqueLeads.length,
-          sourceResultCount: searchResult.leads.length,
-          duplicateCount,
+  return db.$transaction(
+    async (tx) => {
+      // Serialize saves for this tenant; simultaneous pulls must not create duplicates.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.organizationId}))`;
+      const existingLeads = await tx.vegaLead.findMany({
+        where: { organizationId: input.organizationId },
+        select: {
+          id: true,
+          company: true,
+          email: true,
+          phone: true,
+          website: true,
         },
-      },
-    });
+      });
+      const uniqueLeads = deduplicateVegaLeads(
+        searchResult.leads,
+        existingLeads,
+      );
+      const duplicateCount = searchResult.leads.length - uniqueLeads.length;
+      const reused = input.includeExisting
+        ? Array.from(
+            new Map(
+              searchResult.leads.flatMap((candidate) => {
+                const match = existingLeads.find((existing) =>
+                  leadIdentityTokens(candidate).some((token) =>
+                    leadIdentityTokens(existing).includes(token),
+                  ),
+                );
+                return match ? [[match.id, match] as const] : [];
+              }),
+            ).values(),
+          )
+        : [];
+      const returnedCount = uniqueLeads.length + reused.length;
+      const status =
+        returnedCount === 0 && searchResult.report?.errors.length
+          ? "FAILED"
+          : searchResult.leads.length > 0 && returnedCount === 0
+            ? "NO_NEW_LEADS"
+            : returnedCount < count
+              ? "PARTIAL"
+              : "COMPLETED";
+      const query = await tx.vegaLeadQuery.create({
+        data: {
+          organizationId: input.organizationId,
+          requestedById: input.requestedById,
+          prompt: input.prompt,
+          status,
+          source: searchResult.source,
+          resultCount: returnedCount,
+          requestedCount: count,
+          sourceReport: {
+            ...searchResult.report,
+            message: `${searchResult.message} Saved ${uniqueLeads.length} new; included ${reused.length} existing.${!input.includeExisting && duplicateCount ? ` ${duplicateCount} concurrent duplicates excluded.` : ""}`,
+          },
+          completedAt: new Date(),
+        },
+      });
 
-    return query;
-  });
-}
+      const resultIds = reused.map((lead) => lead.id);
+      for (const lead of uniqueLeads) {
+        const created = await tx.vegaLead.create({
+          data: {
+            organizationId: input.organizationId,
+            queryId: query.id,
+            ...lead,
+          },
+        });
+        resultIds.push(created.id);
+      }
+      if (resultIds.length)
+        await tx.vegaLeadQueryResult.createMany({
+          data: resultIds.map((leadId) => ({ queryId: query.id, leadId })),
+        });
 
-type VegaLeadIdentity = Pick<
-  PortalVegaLeadInput,
-  "company" | "email" | "phone" | "website"
->;
+      await tx.activityEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          type: "vega.leads_pulled",
+          title: "Vega lead request completed",
+          body: [
+            searchResult.message,
+            duplicateCount && !input.includeExisting
+              ? `${duplicateCount} existing or repeated lead${duplicateCount === 1 ? " was" : "s were"} excluded.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        },
+      });
 
-export function deduplicateVegaLeads<T extends VegaLeadIdentity>(
-  candidates: T[],
-  existing: VegaLeadIdentity[] = [],
-) {
-  const seen = new Set(existing.flatMap(buildLeadIdentityTokens));
+      await tx.auditLog.create({
+        data: {
+          actorUserId: input.requestedById,
+          eventType: "vega.lead_query.created",
+          entityType: "VegaLeadQuery",
+          entityId: query.id,
+          metadata: {
+            organizationId: input.organizationId,
+            provider: searchResult.provider,
+            resultCount: returnedCount,
+            newCount: uniqueLeads.length,
+            reusedCount: reused.length,
+            sourceResultCount: searchResult.leads.length,
+            duplicateCount,
+          },
+        },
+      });
 
-  return candidates.filter((candidate) => {
-    const tokens = buildLeadIdentityTokens(candidate);
-    if (tokens.some((token) => seen.has(token))) return false;
-    tokens.forEach((token) => seen.add(token));
-    return true;
-  });
-}
-
-function buildLeadIdentityTokens(lead: VegaLeadIdentity) {
-  const company = normalizeIdentityText(lead.company);
-  const email = lead.email?.trim().toLowerCase();
-  const phone = lead.phone?.replace(/\D/g, "").slice(-10);
-  const website = normalizeWebsiteHost(lead.website);
-
-  return [
-    company ? `company:${company}` : null,
-    email ? `email:${email}` : null,
-    phone && phone.length >= 7 ? `phone:${phone}` : null,
-    website ? `website:${website}` : null,
-  ].filter((token): token is string => Boolean(token));
-}
-
-function normalizeIdentityText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/\b(?:llc|inc|incorporated|corp|corporation|company|co)\b/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function normalizeWebsiteHost(value: string | null) {
-  if (!value) return null;
-  try {
-    const url = new URL(
-      /^https?:\/\//i.test(value) ? value : `https://${value}`,
-    );
-    return url.hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return null;
-  }
+      return query;
+    },
+    { timeout: 30_000 },
+  );
 }
 
 export function buildVegaSnapshot(input: {

@@ -22,11 +22,18 @@ export async function createVegaLeadQueryAction(formData: FormData) {
   if (prompt.length < 10) {
     redirectWith("error", "Tell Vega what kind of leads to pull.");
   }
+  const count = Number(formData.get("count") || 50);
+  if (![20, 50, 100].includes(count))
+    redirectWith("error", "Choose 20, 50, or 100 leads.");
 
   const query = await createVegaLeadQuery({
     organizationId: organization.id,
     requestedById: user.id,
     prompt,
+    count,
+    includeExisting: formData.get("includeExisting") === "on",
+    callReady: formData.get("callReady") === "on",
+    multiSource: formData.get("multiSource") === "on",
   });
 
   revalidatePath("/vega");
