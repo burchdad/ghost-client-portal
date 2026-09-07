@@ -323,6 +323,118 @@ describe("Lead Command client", () => {
     expect(result.report?.stopReason).toBe("source-limited");
   });
 
+  it("enriches locally sourced company leads with confident Apollo contact matches", async () => {
+    const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.provider === "google-maps") {
+        return Response.json({
+          leads: [
+            {
+              companyName: "Example HVAC",
+              phone: "9035550100",
+              website: "https://examplehvac.com",
+              source: "Google Maps via SerpAPI",
+              score: 81,
+            },
+          ],
+        });
+      }
+      if (body.provider === "apollo") {
+        expect(body.query).toContain("Example HVAC");
+        return Response.json({
+          leads: [
+            {
+              name: "Alex Rivera",
+              companyName: "Example HVAC LLC",
+              title: "Owner",
+              email: "alex@examplehvac.com",
+              website: "https://examplehvac.com",
+              source: "Apollo",
+              score: 93,
+            },
+          ],
+        });
+      }
+      return Response.json({ leads: [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchLeadCommandLeads("HVAC near Tyler, Texas", {
+      count: 1,
+      multiSource: true,
+      callReady: true,
+    });
+
+    expect(result.source).toBe("lead_command:google-maps+apollo");
+    expect(result.report?.enrichment).toMatchObject({
+      provider: "apollo",
+      attempted: 1,
+      matched: 1,
+      noMatch: 0,
+    });
+    expect(result.leads[0]).toMatchObject({
+      company: "Example HVAC",
+      contactName: "Alex Rivera",
+      title: "Owner",
+      email: "alex@examplehvac.com",
+      status: "READY_FOR_OUTREACH",
+      intentScore: 93,
+      source: "lead_command:google-maps:Google Maps via SerpAPI+apollo-enriched",
+      nextStep:
+        "Review Apollo-enriched contact data and draft first-touch outreach.",
+    });
+  });
+
+  it("does not merge Apollo people when the company identity is unclear", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.provider === "google-maps") {
+          return Response.json({
+            leads: [
+              {
+                companyName: "Example HVAC",
+                phone: "9035550100",
+                website: "https://examplehvac.com",
+              },
+            ],
+          });
+        }
+        if (body.provider === "apollo") {
+          return Response.json({
+            leads: [
+              {
+                name: "Casey Morgan",
+                companyName: "Different Plumbing",
+                email: "casey@different.example",
+              },
+            ],
+          });
+        }
+        return Response.json({ leads: [] });
+      }),
+    );
+
+    const result = await searchLeadCommandLeads("HVAC near Tyler, Texas", {
+      count: 1,
+      multiSource: true,
+      callReady: true,
+    });
+
+    expect(result.report?.enrichment).toMatchObject({
+      attempted: 1,
+      matched: 0,
+      noMatch: 1,
+    });
+    expect(result.leads[0]).toMatchObject({
+      company: "Example HVAC",
+      contactName: null,
+      email: null,
+      status: "QUALIFIED",
+    });
+  });
+
   it("stops repeated cursors and rejects mock data and unusable phone numbers", async () => {
     const fetchMock = vi.fn(async () =>
       Response.json({

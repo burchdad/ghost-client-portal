@@ -64,6 +64,13 @@ export type LeadCommandSearchResult = {
     skipped: Record<string, number>;
     errors: string[];
     stopReason: string;
+    enrichment?: {
+      provider: "apollo";
+      attempted: number;
+      matched: number;
+      noMatch: number;
+      errors: string[];
+    };
   };
 };
 
@@ -112,7 +119,7 @@ export async function searchLeadCommandLeads(
   const leads: PortalVegaLeadInput[] = [];
   const contributingSources = new Set<LeadCommandProvider>();
   const sourceNotes: string[] = [];
-  const report = {
+  const report: NonNullable<LeadCommandSearchResult["report"]> = {
     requested: size,
     batches: 0,
     duplicates: 0,
@@ -203,6 +210,19 @@ export async function searchLeadCommandLeads(
     if (leads.length >= size || report.stopReason === "request-budget-reached")
       break;
   }
+  const apolloAlreadyFailed = report.errors.some((error) =>
+    error.startsWith("apollo:"),
+  );
+  if (options.multiSource && leads.length && !apolloAlreadyFailed) {
+    const enrichment = await enrichCompanyLeadsWithApollo({
+      leads,
+      prompt,
+      location,
+    });
+    if (enrichment.matched) contributingSources.add("apollo");
+    if (enrichment.errors.length) report.errors.push(...enrichment.errors);
+    report.enrichment = enrichment;
+  }
   if (leads.length >= size) report.stopReason = "target-reached";
   else if (
     report.errors.length &&
@@ -217,7 +237,10 @@ export async function searchLeadCommandLeads(
     .filter(([, count]) => count > 0)
     .map(([reason, count]) => `${count} ${reason.replaceAll("-", " ")}`)
     .join(", ");
-  const message = `Requested ${size}, returned ${leads.length}. ${report.duplicates} duplicates excluded.${skippedSummary ? ` Excluded: ${skippedSummary}.` : ""} ${report.stopReason.replaceAll("-", " ")}.${report.errors.length ? ` ${report.errors.join(" ")}` : ""}${sourceNotes.length ? ` ${sourceNotes.join(" ")}` : ""}`;
+  const enrichmentSummary = report.enrichment
+    ? ` Apollo enrichment matched ${report.enrichment.matched}/${report.enrichment.attempted} company leads${report.enrichment.noMatch ? `; ${report.enrichment.noMatch} had no confident person match` : ""}.`
+    : "";
+  const message = `Requested ${size}, returned ${leads.length}. ${report.duplicates} duplicates excluded.${skippedSummary ? ` Excluded: ${skippedSummary}.` : ""} ${report.stopReason.replaceAll("-", " ")}.${enrichmentSummary}${report.errors.length ? ` ${report.errors.join(" ")}` : ""}${sourceNotes.length ? ` ${sourceNotes.join(" ")}` : ""}`;
 
   return {
     provider,
@@ -226,6 +249,164 @@ export async function searchLeadCommandLeads(
     leads,
     report,
   };
+}
+
+async function enrichCompanyLeadsWithApollo(input: {
+  leads: PortalVegaLeadInput[];
+  prompt: string;
+  location: string;
+}) {
+  const targets = input.leads
+    .filter(
+      (lead) =>
+        !lead.email ||
+        !lead.contactName ||
+        lead.title === "Decision-maker not identified",
+    )
+    .slice(0, 20);
+  const enrichment = {
+    provider: "apollo" as const,
+    attempted: targets.length,
+    matched: 0,
+    noMatch: 0,
+    errors: [] as string[],
+  };
+
+  for (const lead of targets) {
+    let response: LeadCommandSearchResponse;
+    try {
+      response = await fetchLeadCommandSearch({
+        provider: "apollo",
+        query: buildApolloEnrichmentQuery(lead, input.prompt),
+        location: input.location,
+        size: 3,
+      });
+    } catch (error) {
+      enrichment.errors.push(
+        `apollo-enrichment: ${error instanceof Error ? error.message : "Apollo enrichment unavailable"}`,
+      );
+      continue;
+    }
+
+    if (response.dryRun) {
+      enrichment.errors.push(
+        "apollo-enrichment: Live Apollo source is not configured; sample data was rejected.",
+      );
+      continue;
+    }
+
+    const rawCandidates = [
+      ...(response.leads || []),
+      ...(response.reviewLeads || []),
+    ];
+    const match = rawCandidates.find((candidate) =>
+      isApolloCompanyMatch(candidate, lead),
+    );
+    if (!match) {
+      enrichment.noMatch++;
+      continue;
+    }
+
+    const enriched = mapLeadCommandLead(match, "apollo", input.prompt);
+    if (!enriched) {
+      enrichment.noMatch++;
+      continue;
+    }
+
+    mergeApolloEnrichment(lead, enriched);
+    enrichment.matched++;
+  }
+
+  return enrichment;
+}
+
+function buildApolloEnrichmentQuery(
+  lead: PortalVegaLeadInput,
+  prompt: string,
+) {
+  const domain = extractHostname(lead.website);
+  return [
+    "owner founder president CEO operations manager decision maker",
+    `at ${lead.company}`,
+    domain ? `domain ${domain}` : null,
+    `for this Vega request: ${prompt}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function isApolloCompanyMatch(
+  candidate: LeadCommandLead,
+  lead: PortalVegaLeadInput,
+) {
+  const candidateCompany = candidate.companyName || candidate.name;
+  if (candidateCompany && companiesLookRelated(candidateCompany, lead.company))
+    return true;
+
+  const leadHost = extractHostname(lead.website);
+  const candidateHost = extractHostname(candidate.website);
+  return Boolean(leadHost && candidateHost && leadHost === candidateHost);
+}
+
+function companiesLookRelated(left: string, right: string) {
+  const leftKey = normalizeCompanyForMatch(left);
+  const rightKey = normalizeCompanyForMatch(right);
+  if (!leftKey || !rightKey) return false;
+  if (leftKey === rightKey) return true;
+  const leftWords = new Set(leftKey.split(" ").filter((word) => word.length > 2));
+  const rightWords = rightKey.split(" ").filter((word) => word.length > 2);
+  if (!leftWords.size || !rightWords.length) return false;
+  const shared = rightWords.filter((word) => leftWords.has(word)).length;
+  return shared >= Math.min(2, rightWords.length);
+}
+
+function normalizeCompanyForMatch(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(
+      /\b(?:llc|inc|co|company|corp|corporation|limited|the|air|a\/c|ac|hvac)\b/g,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractHostname(value?: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value.startsWith("http") ? value : `https://${value}`);
+    return url.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function mergeApolloEnrichment(
+  lead: PortalVegaLeadInput,
+  enrichment: PortalVegaLeadInput,
+) {
+  const originalSource = lead.source;
+  lead.contactName = lead.contactName || enrichment.contactName;
+  lead.title =
+    !lead.title || lead.title === "Decision-maker not identified"
+      ? enrichment.title
+      : lead.title;
+  lead.email = lead.email || enrichment.email;
+  lead.phone = lead.phone || enrichment.phone;
+  lead.website = lead.website || enrichment.website;
+  lead.intentScore = Math.max(lead.intentScore, enrichment.intentScore);
+  lead.source = originalSource.includes("apollo")
+    ? originalSource
+    : `${originalSource}+apollo-enriched`;
+  lead.status = lead.email ? "READY_FOR_OUTREACH" : lead.status;
+  lead.notes = [lead.notes, enrichment.notes ? `Apollo enrichment:\n${enrichment.notes}` : null]
+    .filter(Boolean)
+    .join("\n\n");
+  lead.nextStep = lead.email
+    ? "Review Apollo-enriched contact data and draft first-touch outreach."
+    : lead.nextStep;
 }
 
 async function fetchLeadCommandSearch(input: {
